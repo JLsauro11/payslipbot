@@ -68,6 +68,12 @@
                     </a>
                 </div>
                 <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <div class="dropdown filter-dropdown">
+                        <button  onclick="openFilterModal()" class="btn btn-md btn-light-brand" id="filter">
+                            <i class="feather-filter me-2"></i>
+                            <span>Filter</span>
+                        </button>
+                    </div>
                     <button onclick="openAddModal()" class="btn btn-primary">
                         <i class="feather-plus me-2"></i>
                         <span>Add Payslip</span>
@@ -145,16 +151,86 @@
 
         var baseURL = window.baseUrl = '{{ url("") }}';
 
+        // Declare variables at top
+        let table;
+        let currentFilters = { start_date: '', end_date: '' };
+        let selectedIds = [];
+
+        // Filter Modal
+        window.openFilterModal = function() {
+            $('#filterForm')[0].reset();
+            $('#filterModal #startDate').val(currentFilters.start_date);
+            $('#filterModal #endDate').val(currentFilters.end_date);
+            $('#filterModal').modal('show');
+        };
+
+        // Filter Submit - FULL CORRECTED VERSION
+        $('#filterForm').on('submit', function(e) {
+            e.preventDefault();
+
+            let startDate = $('#filterModal #startDate').val();
+            let endDate = $('#filterModal #endDate').val();
+
+            // ✅ FIXED DATE VALIDATION (MM/DD/YYYY format)
+            if (startDate && endDate) {
+                let startParts = startDate.split('/');
+                let endParts = endDate.split('/');
+
+                let start = new Date(startParts[2], startParts[0]-1, startParts[1]);  // Year, Month-1, Day
+                let end = new Date(endParts[2], endParts[0]-1, endParts[1]);          // Year, Month-1, Day
+
+                if (start > end || isNaN(start) || isNaN(end)) {
+                    Swal.fire('Invalid Dates!', 'Start date cannot be after end date', 'error');
+                    return false;
+                }
+            }
+
+            let $btn = $('#filterBtn');
+            let $spinner = $('#filterSpinner');
+
+            $btn.prop('disabled', true);
+            $spinner.removeClass('d-none');
+
+            currentFilters.start_date = startDate;
+            currentFilters.end_date = endDate;
+
+            table.ajax.reload(null, false);
+            $('#filterModal').modal('hide');
+
+            setTimeout(() => {
+                $btn.prop('disabled', false);
+            $spinner.addClass('d-none');  // ✅ SEMICOLON FIXED
+        }, 500);
+        });
+
+
+
+
+        // Clear Filters button
+        $('#cancelFilterBtn').on('click', function() {
+            currentFilters = { start_date: '', end_date: '' };
+            $('#filterForm')[0].reset();
+            table.ajax.reload(null, false);
+            $('#filterModal').modal('hide');
+        });
+
+        // Select2
         $('#payslip_employee_id').select2({
             placeholder: '-- Select Employee --',
             width: '100%',
             dropdownParent: $('#payslipModal')
         });
 
-        // Initialize DataTable
-        let table = $('#payslipsTable').DataTable({
+        // DataTable
+        table = $('#payslipsTable').DataTable({
+            processing: true,
+            serverSide: true,
             ajax: {
                 url: '{{ route("payslips.data") }}',
+                data: function(d) {
+                    d.start_date = currentFilters.start_date;
+                    d.end_date = currentFilters.end_date;
+                },
                 dataSrc: 'data'
             },
             columns: [
@@ -200,12 +276,15 @@
                     width: "15%"
                 }
             ],
-            order: [[1, 'desc']],
+            order: [[2, 'desc']],
             pageLength: 25,
             responsive: true,
             language: {
                 search: "Search payslips:",
-                lengthMenu: "Show _MENU_ entries"
+                lengthMenu: "Show _MENU_ entries",
+                processing: "Loading...",
+                emptyTable: "No payslips found",
+                zeroRecords: "No payslips found for selected date range"
             }
         });
 
@@ -229,6 +308,7 @@
                 }
             });
         }
+
 
         // Add/Edit Modal
         window.openAddModal = function() {
@@ -368,8 +448,7 @@
         });
         });
 
-        // Track selected rows
-        let selectedIds = [];
+
 
 // Select All checkbox handler (NEW)
         $('#payslipsTable thead').on('change', '#selectAll', function () {

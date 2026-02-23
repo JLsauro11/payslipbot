@@ -166,7 +166,7 @@
                         <label class="form-label fw-bold">Payslip Date <span class="text-danger">*</span></label>
                         <input type="text"
                                 class="form-control"
-                               id="startDate"
+                               id="payslipDate"
                                name="payslip_date"
                                placeholder="Pick payslip date "
                                required>
@@ -184,6 +184,47 @@
         </div>
     </div>
 </div>
+
+{{-- Filter Modal --}}
+<div class="modal fade" id="filterModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Filter Payslips by Date</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="filterForm">
+                @csrf
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-lg-6 mb-3">
+                            <label class="form-label">Start Date <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control " id="startDate" placeholder="Pick Start Date" required>
+                        </div>
+                        <div class="col-lg-6 mb-3">
+                            <label class="form-label">End Date <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control " id="endDate" placeholder="Pick End Date" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelFilterBtn" data-bs-dismiss="modal">
+                        Clear Filters
+                    </button>
+                    <button type="submit" class="btn btn-primary" id="filterBtn">
+                        <span class="spinner-border spinner-border-sm me-1 d-none" id="filterSpinner"></span>
+                        Apply Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+
+
+
 
 
 <script src="{{ asset('assets/vendors/js/vendors.min.js') }}"></script>

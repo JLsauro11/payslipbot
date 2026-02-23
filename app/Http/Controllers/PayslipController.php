@@ -20,32 +20,76 @@ class PayslipController extends Controller
 
     public function data(Request $request)
     {
-        $query = Payslip::with('employee');
+        $query = Payslip::with('employee')->select('payslips.*');
 
-        // ✅ DATE FILTERING - Compatible with your JS
+        // ✅ FIXED: Parse FILTER dates AND convert DB format for TEXT field
+        $startDate = null;
         if ($request->filled('start_date')) {
-            $query->whereDate('payslip_date', '>=', $request->start_date);
+            try {
+                $date = \Carbon\Carbon::createFromFormat('m/d/Y', $request->start_date);
+                if ($date && $date->format('m/d/Y') === $request->start_date) {
+                    $startDate = $date->format('m/d/Y');  // ✅ SAME FORMAT AS DB!
+                }
+            } catch (\Exception $e) {
+                \Log::error('Invalid start_date: ' . $request->start_date);
+            }
         }
 
+        $endDate = null;
         if ($request->filled('end_date')) {
-            $query->whereDate('payslip_date', '<=', $request->end_date);
+            try {
+                $date = \Carbon\Carbon::createFromFormat('m/d/Y', $request->end_date);
+                if ($date && $date->format('m/d/Y') === $request->end_date) {
+                    $endDate = $date->format('m/d/Y');  // ✅ SAME FORMAT AS DB!
+                }
+            } catch (\Exception $e) {
+                \Log::error('Invalid end_date: ' . $request->end_date);
+            }
         }
 
-        $payslips = $query->get();
+        // Apply filters - TEXT field comparison
+        if ($startDate) {
+            $query->where('payslip_date', '>=', $startDate);
+        }
+        if ($endDate) {
+            $query->where('payslip_date', '<=', $endDate);
+        }
+
+        // Global search - FIX date search too!
+        if ($request->filled('search.value')) {
+            $search = $request->search['value'];
+            $query->where(function($q) use ($search) {
+                $q->whereHas('employee', function($sub) use ($search) {
+                    $sub->where('name', 'like', "%{$search}%")
+                        ->orWhere('employee_id', 'like', "%{$search}%");
+                })->orWhere('payslip_date', 'like', "%{$search}%");
+            });
+        }
+
+        // Column ordering
+        $orderColumn = $request->input('columns.' . ($request->order[0]['column'] ?? 1) . '.name', 'id');
+        $orderDir = $request->input('order.0.dir', 'desc');
+
+        $totalRecords = Payslip::count();
+        $filteredRecords = clone $query;
+        $filteredRecords = $filteredRecords->count();
+
+        $payslips = $query->orderBy($orderColumn, $orderDir)
+            ->skip($request->start ?? 0)
+            ->take($request->length ?? 25)
+            ->get();
 
         return response()->json([
+            'draw' => (int)($request->draw ?? 1),
+            'recordsTotal' => $totalRecords,
+            'recordsFiltered' => $filteredRecords,
             'data' => $payslips->map(function ($payslip) {
                 return [
                     'id' => $payslip->id,
                     'employee_id' => $payslip->employee->employee_id ?? $payslip->employee_id,
                     'name' => $payslip->employee->name ?? $payslip->name,
-                    'payslip' => $payslip->payslip,
-                    // ✅ YOUR EXISTING DATE FORMATTING - UNCHANGED
-                    'payslip_date' => $payslip->payslip_date ?
-                        (is_object($payslip->payslip_date) ?
-                            $payslip->payslip_date->format('m/d/Y') :
-                            date('m/d/Y', strtotime($payslip->payslip_date))
-                        ) : null,
+                    'payslip' => $payslip->payslip ? $payslip->payslip : '-',
+                    'payslip_date' => $payslip->payslip_date ?: null,
                 ];
             })
         ]);

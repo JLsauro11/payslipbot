@@ -1,10 +1,28 @@
+<style>
+    .m-header {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        padding: 10px 0 !important; /* Replace your 50px margins */
+    }
+
+    .b-brand {
+        display: flex !important;
+        justify-content: center !important;
+    }
+
+    .rs8-logo-full {
+        vertical-align: middle !important;
+        max-width: 200px !important; /* Adjust to fit */
+    }
+</style>
 <nav class="nxl-navigation">
     <div class="navbar-wrapper">
         <div class="m-header">
             <a href="index.html" class="b-brand">
                 <!-- ========   change your logo hear   ============ -->
-                <img src="assets/images/logo-full.png" alt="" class="logo logo-lg" />
-                <img src="assets/images/logo-abbr.png" alt="" class="logo logo-sm" />
+                <img src="assets/images/rs8-logo-full.png" alt="" class="logo logo-lg rs8-logo-full" />
+                <img src="assets/images/rs8-logo.png" alt="" class="logo logo-sm" />
             </a>
         </div>
         <div class="navbar-content">

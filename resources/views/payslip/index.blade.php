@@ -48,7 +48,6 @@
 
     @endpush
 
-    <!-- [ page-header ] start -->
     <div class="page-header">
         <div class="page-header-left d-flex align-items-center">
             <div class="page-header-title">
@@ -68,17 +67,30 @@
                     </a>
                 </div>
                 <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
-                    <div class="dropdown filter-dropdown">
                         <button  onclick="openFilterModal()" class="btn btn-md btn-light-brand" id="filter">
-                            <i class="feather-filter me-2"></i>
-                            <span>Filter</span>
-                        </button>
-                    </div>
-                    <button onclick="openAddModal()" class="btn btn-primary">
-                        <i class="feather-plus me-2"></i>
-                        <span>Add Payslip</span>
+                        <i class="feather-filter me-2"></i>
+                        <span>Filter</span>
                     </button>
-
+                    <div class="dropdown filter-dropdown">
+                        <a class="btn btn-primary" data-bs-toggle="dropdown" data-bs-offset="0, 10" data-bs-auto-close="outside">
+                            <i class="feather-plus me-2"></i>
+                            <span>New</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <button onclick="openAddModal()" class="dropdown-item">
+                                    <i class="feather-file-plus me-3"></i>
+                                    <span>Payslip Upload</span>
+                                </button>
+                            </li>
+                            <li>
+                                <a href="javascript:void(0);" class="dropdown-item" onclick="openMultiUploadModal()">
+                                    <i class="feather-folder-plus me-3"></i>
+                                    <span>Multi-Payslips Upload</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
             </div>
             <div class="d-md-none d-flex align-items-center">
@@ -89,12 +101,6 @@
         </div>
     </div>
 
-
-
-    {{-- Modal --}}
-
-    <!-- [ page-header ] end -->
-    <!-- [ Main Content ] start -->
     <div class="main-content">
         <div class="row">
             <div class="col-lg-12">
@@ -125,13 +131,12 @@
         </div>
     </div>
 
-    <!-- ✅ CENTERED BOTTOM BUTTON -->
     <div class="fixed-bottom-multi-delete">
         <div class="container-fluid">
             <div class="row justify-content-center">
                 <div class="col-auto">
                     <button id="multiDeleteBtn" class="btn btn-danger btn-lg shadow px-4" style="display: none;">
-                        <i class="fas fa-trash"></i> Delete Selected
+                        <i class="fas fa-trash me-2"></i> Delete Selected
                         <span class="badge bg-light text-danger ms-2" id="selectedCount">0</span>
                     </button>
                 </div>
@@ -310,11 +315,29 @@
         }
 
 
-        // Add/Edit Modal
+// Close dropdown when modal opens (minimal intervention)
+        $('#payslipModal').on('show.bs.modal', function() {
+            // Just remove show classes, NO .hide()
+            $('.filter-dropdown').removeClass('show');
+            $('.filter-dropdown .dropdown-menu').removeClass('show');
+        });
+
+// Reset on modal close (proper Bootstrap 5 way)
+        $('#payslipModal').on('hidden.bs.modal', function() {
+            // Remove any lingering classes only
+            $('.filter-dropdown').removeClass('show');
+            $('.filter-dropdown .dropdown-menu').removeClass('show');
+
+            // Trigger click event to reinitialize Bootstrap dropdown
+            setTimeout(function() {
+                $('.filter-dropdown [data-bs-toggle="dropdown"]').trigger('click').trigger('click');
+            }, 100);
+        });
+
         window.openAddModal = function() {
             $('#payslipForm')[0].reset();
             $('#payslip_id').val('');
-            $('#modalTitle').text('Add Payslip');
+            $('#modalTitle').text('Upload Payslip');
             loadPayslipEmployees();
             $('#payslipModal').modal('show');
         };
@@ -401,6 +424,160 @@
                 }
             });
         });
+
+
+        // Multi Upload Modal
+        window.openMultiUploadModal = function() {
+            $('#multiUploadForm')[0].reset();
+            $('#multiPreview').empty();
+            $('#multiUploadModal').modal('show');
+        };
+
+// Multi-file preview and validation
+        $('#multi_payslip_files').on('change', function() {
+            let files = this.files;
+            let preview = $('#multiPreview');
+            preview.empty();
+
+            let validFiles = [];
+            let errors = [];
+
+            Array.from(files).forEach((file, index) => {
+                let filename = file.name.replace('.pdf', '');
+            let parts = filename.split('_');
+
+            if (parts.length !== 4) {
+                errors.push(`${file.name}: Invalid format. Use: EMPLOYEEID_MM_DD_YYYY.pdf`);
+                return;
+            }
+
+            let [employeeId, month, day, year] = parts;
+            let dateStr = `${month.padStart(2,'0')}/${day.padStart(2,'0')}/${year}`;
+
+            // Basic date validation
+            let date = new Date(year, month-1, day);
+            if (date.getFullYear() != year || date.getMonth() + 1 != month || date.getDate() != day) {
+                errors.push(`${file.name}: Invalid date`);
+                return;
+            }
+
+            // Check if 15th or last day of month
+            let daysInMonth = new Date(year, month, 0).getDate();
+            if (day != 15 && day != daysInMonth) {
+                errors.push(`${file.name}: Must be 15th or last day of month`);
+                return;
+            }
+
+            validFiles.push({
+                file: file,
+                employeeId: employeeId,
+                date: dateStr
+            });
+        });
+
+            // Show preview
+            if (validFiles.length > 0) {
+                let previewHtml = `<div class="alert alert-success">✅ ${validFiles.length} valid file(s) ready:</div>`;
+                validFiles.forEach(item => {
+                    previewHtml += `
+                <div class="d-flex justify-content-between align-items-center p-2 border rounded mb-2">
+                    <span>${item.file.name}</span>
+                    <small class="text-success">✓ ${item.employeeId} - ${item.date}</small>
+                </div>
+            `;
+            });
+                preview.html(previewHtml);
+            }
+
+            if (errors.length > 0) {
+                preview.append(`
+            <div class="alert alert-danger mt-2">
+                <strong>❌ Invalid files:</strong><br>${errors.join('<br>')}
+            </div>
+        `);
+            }
+        });
+
+// Multi Upload Form Submit
+        $('#multiUploadForm').on('submit', function(e) {
+            e.preventDefault();
+
+            let formData = new FormData(this);
+            let $btn = $('#multiSubmitBtn');
+            let $spinner = $('#multiSpinner');
+
+            $btn.prop('disabled', true);
+            $spinner.removeClass('d-none');
+
+            $.ajax({
+                url: '{{ route("payslips.multi-store") }}',
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+                    'Accept': 'application/json'
+                },
+                success: function(response) {
+                    $('#multiUploadModal').modal('hide');
+                    $('#multiUploadForm')[0].reset();
+                    $('#multiPreview').empty();
+                    table.ajax.reload();
+
+                    if (response.details) {  // ✅ Just check details exists
+                        let { success, failed, errors } = response.details;
+
+                        // ✅ FIXED: Build HTML properly
+                        let swalHtml = '';
+                        if (success > 0) {
+                            swalHtml = `✅ ${success} payslip(s) uploaded successfully!`;
+                        }
+
+                        if (failed > 0) {
+                            if (success > 0) {
+                                swalHtml += '<br><br>';
+                            }
+                            swalHtml += `<strong>❌ ${failed} failed:</strong><br>`;
+                            swalHtml += errors.map(error => `• ${error}`).join('<br>');
+                        }
+
+                        Swal.fire({
+                            icon: success > 0 ? 'success' : 'warning',
+                            title: success > 0 ? 'Upload Complete!' : (failed > 0 ? 'Upload Results' : 'Complete'),
+                            html: swalHtml || response.message || 'Processing complete.',
+                            confirmButtonText: 'OK',
+                            customClass: {
+                                popup: 'text-left'
+                            }
+                        });
+                    }
+                },
+
+                error: function(xhr) {
+                    let response = xhr.responseJSON;
+
+                    // Handle validation errors from controller
+                    if (response && response.validation) {
+                        let errors = Object.values(response.errors).flat().join('<br>');
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Validation Error!',
+                            html: errors,
+                            customClass: { popup: 'text-left' }
+                        });
+                    } else {
+                        Swal.fire('Error!', response?.message || 'Something went wrong!', 'error');
+                    }
+                },
+                complete: function() {
+                    $btn.prop('disabled', false);
+                    $spinner.addClass('d-none');
+                }
+            });
+        });
+
+
 
         $(document).on('click', '.delete-btn', function(e) {
             e.preventDefault();

@@ -39,9 +39,14 @@ Route::get('/', function () {
 
 
 
-Route::controller(AuthController::class)->middleware('guest')->group( function() {
-    Route::match(['post', 'get'], 'login', 'login')->name('login');
+Route::controller(AuthController::class)->middleware('guest')->group(function() {
+    Route::match(['get', 'post'], 'login', 'login')->name('login');
+    Route::get('forgot-password', 'forgot_password')->name('forgot-password');
+    Route::post('forgot-password', 'verify_submit')->name('forgot-password.submit');
+    Route::get('change-password', 'change_password')->name('change-password');
+    Route::post('change-password', 'change_password_submit')->name('change-password.submit');
 });
+
 
 Route::controller(AuthController::class)->middleware('auth')->group( function() {
     Route::match(['post', 'get'], 'logout', 'logout')->name('logout');
@@ -67,6 +72,7 @@ Route::controller(PayslipController::class)->middleware('auth')->group(function(
     Route::get('payslips/{payslip}', 'show')->name('payslips.show');
     Route::put('payslips/{payslip}', 'update')->name('payslips.update');
     Route::delete('payslips/{payslip}', 'destroy')->name('payslips.destroy');
+    Route::post('payslips/multi-store', 'multiStore')->name('payslips.multi-store');
 });
 
 Route::post('/payslips/delete-selected', [PayslipController::class, 'bulkDelete'])

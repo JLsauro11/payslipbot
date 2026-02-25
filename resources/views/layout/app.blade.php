@@ -12,9 +12,11 @@
     <!--! The above 6 meta tags *must* come first in the head; any other head content must come *after* these tags !-->
     <!--! BEGIN: Apps Title-->
     <title>@yield('title')</title>
+
     <!--! END:  Apps Title-->
     <!--! BEGIN: Favicon-->
-    <link rel="shortcut icon" type="image/x-icon" href="{{ asset('assets/images/favicon.ico') }}" />
+    <link rel="shortcut icon" type="image/x-icon" href="{{ asset('assets/images/rs8-logo.png') }}" />
+
     <!--! END: Favicon-->
     <!--! BEGIN: Bootstrap CSS-->
     <link rel="stylesheet" type="text/css" href="{{ asset('assets/css/bootstrap.min.css') }}" />
@@ -39,10 +41,29 @@
     <script src="https:oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
     <script src="https:oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
     <![endif]-->
+
+    <style>
+        .btn-primary, .btn-primary:hover, .btn.bg-soft-primary:focus, .btn.bg-soft-primary:hover {
+            color: #fff !important;
+            border-color: #ea4d4d !important;
+            background-color: #ea4d4d !important;
+        }
+        .text-primary {
+            color: #ea4d4d !important;
+        }
+        .custom-file.active, .custom-file.focus, .custom-file:active, .custom-file:focus, .custom-select.active, .custom-select.focus, .custom-select:active, .custom-select:focus, .form-control.active, .form-control.focus, .form-control:active, .form-control:focus, .form-select.active, .form-select.focus, .form-select:active, .form-select:focus, input.active, input.focus, input:active, input:focus {
+            outline: 0;
+            color: #283c50;
+            border-color: #ea4d4d !important;
+            box-shadow: none !important;
+        }
+    </style>
     @stack('css')
+
 </head>
 
 <body>
+
 
 <!--! ================================================================ !-->
 <!--! [Start] Navigation Manu !-->
@@ -66,7 +87,9 @@
 
 
 <main class="nxl-container">
+
     <div class="nxl-content">
+
         <!-- [ page-header ] start -->
 
     <!-- [ page-header ] end -->
@@ -75,6 +98,7 @@
 
         <!-- [ Main Content ] end -->
     </div>
+
 
 </main>
 
@@ -222,6 +246,34 @@
 </div>
 
 
+<!-- Multi Upload Modal -->
+<div class="modal fade" id="multiUploadModal" tabindex="-1" aria-labelledby="multiUploadModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="multiUploadTitle">Upload Multiple Payslips</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="multiUploadForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label">Select Multiple PDF Files <small class="text-muted">(Naming: EMPLOYEEID_MM_DD_YYYY.pdf)</small></label>
+                        <input type="file" class="form-control" id="multi_payslip_files" name="payslip_files[]" multiple accept=".pdf" required>
+                        <div class="form-text">Example: 2025050_01_15_2026.pdf</div>
+                    </div>
+                    <div id="multiPreview" class="mb-3"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="multiUploadForm" class="btn btn-primary" id="multiSubmitBtn">
+                    <span class="spinner-border spinner-border-sm d-none" id="multiSpinner" role="status"></span>
+                    Upload Payslips
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 
 
@@ -249,8 +301,11 @@
 <!--! END: Apps Init !-->
 <!--! BEGIN: Theme Customizer  !-->
 <script src="{{ asset('assets/js/theme-customizer-init.min.js') }}"></script>
+
+@stack('js')
+
+
 <!--! END: Theme Customizer !-->
-<script src="{{ asset('assets/vendors/js/bootstrap.min.js') }}"></script>
 
 <script>
     $(document).ready(function() {
@@ -304,11 +359,6 @@
         $("#total_amount").val((tax_sum + total).toFixed(2));
     }
 </script>
-
-
-
-
-@stack('js')
 
 
 </body>

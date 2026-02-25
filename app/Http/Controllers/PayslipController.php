@@ -95,13 +95,129 @@ class PayslipController extends Controller
         ]);
     }
 
+    public function multiStore(Request $request)
+    {
+        $files = $request->file('payslip_files');
+
+        if (!$files || count($files) === 0) {
+            return response()->json([
+                'status' => false,
+                'message' => 'No files uploaded!'
+            ], 400);
+        }
+
+        $results = ['success' => 0, 'failed' => 0, 'errors' => []];
+
+        foreach ($files as $file) {
+            try {
+                $filename = $file->getClientOriginalName();
+                $nameWithoutExt = pathinfo($filename, PATHINFO_FILENAME);
+
+                // Parse filename: EMPLOYEEID_MM_DD_YYYY.pdf
+                $parts = explode('_', $nameWithoutExt);
+
+                if (count($parts) !== 4) {
+                    $results['failed']++;
+                    $results['errors'][] = "❌ {$filename}: Invalid format. Use EMPLOYEEID_MM_DD_YYYY.pdf";
+                    continue;
+                }
+
+                [$employeeId, $month, $day, $year] = $parts;
+                $payslipDate = sprintf('%02d/%02d/%04d', $month, $day, $year);
+
+                // Validate date format and business rules
+                $date = DateTime::createFromFormat('m/d/Y', $payslipDate);
+                if (!$date || $date->format('m/d/Y') !== $payslipDate) {
+                    $results['failed']++;
+                    $results['errors'][] = "❌ {$filename}: Invalid date format";
+                    continue;
+                }
+
+                $dayNum = (int)$date->format('d');
+                $daysInMonth = (int)$date->format('t');
+
+                if ($dayNum !== 15 && $dayNum !== $daysInMonth) {
+                    $results['failed']++;
+                    $results['errors'][] = "❌ {$filename}: Date must be 15th or last day of month";
+                    continue;
+                }
+
+                // Check if employee exists
+                $employee = Employee::where('employee_id', $employeeId)->first();
+                if (!$employee) {
+                    $results['failed']++;
+                    $results['errors'][] = "❌ {$filename}: Employee {$employeeId} not found";
+                    continue;
+                }
+
+                // Check for duplicate payslip
+                $exists = Payslip::where('employee_id', $employeeId)
+                    ->where('payslip_date', $payslipDate)
+                    ->exists();
+
+                if ($exists) {
+                    $results['failed']++;
+                    $results['errors'][] = "⚠️ {$filename}: Payslip already exists for {$employeeId} on {$payslipDate}";
+                    continue;
+                }
+
+                // Generate final filename (use original for consistency)
+                $finalFilename = $filename;
+
+                // Ensure directory exists
+                $directory = public_path('payslips');
+                if (!File::exists($directory)) {
+                    File::makeDirectory($directory, 0755, true);
+                }
+
+                // Move file
+                $file->move($directory, $finalFilename);
+
+                // Create record
+                Payslip::create([
+                    'employee_id' => $employeeId,
+                    'name' => $employee->name,
+                    'payslip' => $finalFilename,
+                    'payslip_date' => $payslipDate
+                ]);
+
+                $results['success']++;
+
+            } catch (\Exception $e) {
+                $results['failed']++;
+                $results['errors'][] = "❌ {$file->getClientOriginalName()}: " . $e->getMessage();
+            }
+        }
+
+// ✅ FIXED MESSAGE LOGIC
+        $message = '';
+        if ($results['success'] > 0) {
+            $message .= "✅ {$results['success']} payslip(s) uploaded successfully!";
+        }
+        if ($results['failed'] > 0) {
+            if ($results['success'] > 0) {
+                $message .= ' ';  // Add space only if there's success message
+            }
+            $message .= "❌ {$results['failed']} failed. Check details below:";
+        }
+
+// Clean up empty message
+        if (empty($message)) {
+            $message = 'No valid files processed.';
+        }
+
+        return response()->json([
+            'status' => $results['success'] > 0,
+            'message' => $message,
+            'details' => $results
+        ]);
+    }
 
 
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'employee_id' => 'required|exists:employees,employee_id',
-
             'payslip_file' => 'required|file|mimes:pdf|max:10000',
             'payslip_date' => [
                 'required',
@@ -113,11 +229,43 @@ class PayslipController extends Controller
                     }
 
                     $day = (int)$date->format('d');
-                    $daysInMonth = (int)$date->format('t'); // Total days in month
+                    $daysInMonth = (int)$date->format('t');
 
-                    // Only allow 15th OR last day of month
                     if ($day !== 15 && $day !== $daysInMonth) {
                         $fail("Payslip date must be the 15th ({$date->format('m/15/Y')}) OR last day of the month ({$date->format('m/' . $daysInMonth . '/Y')}).");
+                    }
+                },
+                // ✅ NEW: Validate filename matches payslip date
+                function ($attribute, $value, $fail) use ($request) {
+                    $file = $request->file('payslip_file');
+                    if (!$file) return;
+
+                    $filename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+
+                    // Expected pattern: EMPLOYEEID_MM_DD_YYYY
+                    if (!preg_match('/^(\d+)_(\d{2})_(\d{2})_(\d{4})$/', $filename, $matches)) {
+                        return $fail('Payslip filename must follow format: EMPLOYEEID_MM_DD_YYYY.pdf');
+                    }
+
+                    $fileEmployeeId = $matches[1];
+                    $fileMonth = sprintf('%02d', (int)$matches[2]);
+                    $fileDay = sprintf('%02d', (int)$matches[3]);
+                    $fileYear = $matches[4];
+
+                    // Compare with form employee_id and payslip_date
+                    $formEmployeeId = $request->employee_id;
+                    $formDate = DateTime::createFromFormat('m/d/Y', $value);
+                    $formMonth = $formDate->format('m');
+                    $formDay = $formDate->format('d');
+                    $formYear = $formDate->format('Y');
+
+                    if ($fileEmployeeId !== $formEmployeeId ||
+                        $fileMonth !== $formMonth ||
+                        $fileDay !== $formDay ||
+                        $fileYear !== $formYear) {
+
+                        $expectedFilename = "{$formEmployeeId}_{$formMonth}_{$formDay}_{$formYear}.pdf";
+                        $fail("Filename date ({$fileMonth}/{$fileDay}/{$fileYear}) doesn't match payslip date ({$value}). Expected: {$expectedFilename}");
                     }
                 },
             ],
@@ -131,7 +279,7 @@ class PayslipController extends Controller
             ], 422);
         }
 
-        // ✅ CHECK FOR DUPLICATE FIRST
+        // Rest of your existing code remains the same...
         $date = DateTime::createFromFormat('m/d/Y', $request->payslip_date);
         $exists = Payslip::where('employee_id', $request->employee_id)
             ->where('payslip_date', $request->payslip_date)
@@ -141,31 +289,28 @@ class PayslipController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'Payslip for this employee and date already exists!'
-            ], 409); // 409 Conflict
+            ], 409);
         }
 
         $employee = Employee::where('employee_id', $request->employee_id)->firstOrFail();
         $file = $request->file('payslip_file');
-        $date = DateTime::createFromFormat('m/d/Y', $request->payslip_date);
 
         $filename = $request->employee_id . '_' .
             $date->format('m') . '_' .
             $date->format('d') . '_' .
             $date->format('Y') . '.pdf';
 
-        // ✅ CREATE public/payslips/ folder if not exists
         $directory = public_path('payslips');
         if (!File::exists($directory)) {
             File::makeDirectory($directory, 0755, true);
         }
 
-        // ✅ MOVE file directly to public/payslips/
         $path = $file->move($directory, $filename);
 
         Payslip::create([
             'employee_id' => $request->employee_id,
             'name' => $employee->name,
-            'payslip' => $filename,  // ✅ Relative path
+            'payslip' => $filename,
             'payslip_date' => $date->format('m/d/Y')
         ]);
 

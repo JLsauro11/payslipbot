@@ -62,28 +62,55 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
             return;
         }
 
-        $cleanText = trim($text);
-
-        // 🔥 PRIORITY: Reset command
-        if (strtolower($cleanText) === 'rs8') {
+        // Reset
+        $cleanText = trim(strtolower($text));
+        if ($cleanText === 'rs8') {
             Cache::forget("bot_state_{$senderId}");
             $this->showWelcome($senderId);
             return;
         }
 
-        // 🔥 EXACT MATCH: Payslip shortcut
-        $cleanText = trim(str_replace('📄 ', '', $text));
-        if ($cleanText === 'Get Payslip') {
-            $this->askEmployeeId($senderId);
+        // Strip emojis and any non-letter/number characters before quick-reply matching
+        $textWithoutEmoji = preg_replace('/[^\p{L}\p{N}\s]/u', '', $text);
+        $cleanTextNoEmoji = trim(strtolower($textWithoutEmoji));
+
+
+        if (in_array($cleanTextNoEmoji, ['privacy', 'get payslip', 'change password'], true)) {
+            if ($cleanTextNoEmoji === 'privacy') {
+                $this->showPrivacyOptions($senderId);
+            } elseif ($cleanTextNoEmoji === 'get payslip') {
+                $this->askEmployeeId($senderId);
+            } elseif ($cleanTextNoEmoji === 'change password') {
+                $this->askPrivacyEmployeeId($senderId);
+            }
             return;
         }
-
         $stateData = Cache::get("bot_state_{$senderId}", ['state' => 'start']);
         $state = $stateData['state'];
 
         Log::info('🔍 STATE DEBUG', ['sender' => $senderId, 'state' => $state]);
 
-        $this->handleState($senderId, $stateData, $cleanText);
+        $this->handleState($senderId, $stateData, $text);
+    }
+
+
+    // 🔥 STATE METHODS (unchanged logic, better organization)
+    protected function showWelcome(string $senderId): void
+    {
+        Cache::put("bot_state_{$senderId}", ['state' => 'start'], self::CACHE_TTL);
+        $this->sendMessage($senderId, ['text' => '🎉 Welcome to RS8 HRD! Get your transactions now!']);
+        $this->sendQuickReplies($senderId, 'What transaction would you like?', [
+            ['title' => '📄 Get Payslip', 'payload' => 'GET_PAYSLIP'],
+            ['title' => '🛡️ Privacy', 'payload' => 'PRIVACY']
+        ]);
+    }
+
+    protected function showPrivacyOptions(string $senderId): void
+    {
+        Cache::put("bot_state_{$senderId}", ['state' => 'privacy_menu'], self::CACHE_TTL);
+        $this->sendQuickReplies($senderId, '🔐 Privacy Options:', [
+            ['title' => '🔄 Change Password', 'payload' => 'CHANGE_PASSWORD']
+        ]);
     }
 
     private function handleState(string $senderId, array $stateData, string $text): void
@@ -95,8 +122,26 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
             case 'waiting_employee_id':
                 $this->getEmployeeId($senderId, $text);
                 break;
+            case 'waiting_password':  // 🔥 NEW STATE
+                $this->verifyPassword($senderId, $text);
+                break;
             case 'waiting_payslip_date':
                 $this->getPayslipDate($senderId, $text);
+                break;
+            case 'privacy_menu':
+                $this->showPrivacyOptions($senderId);
+                break;
+            case 'waiting_privacy_employee_id':
+                $this->getPrivacyEmployeeId($senderId, $text);
+                break;
+            case 'waiting_privacy_current_password':
+                $this->verifyPrivacyCurrentPassword($senderId, $text);
+                break;
+            case 'waiting_privacy_new_password':
+                $this->handleNewPassword($senderId, $text);
+                break;
+            case 'waiting_privacy_confirm_password':
+                $this->changePassword($senderId, $text);
                 break;
             default:
                 $this->showWelcome($senderId);
@@ -120,21 +165,139 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
             case 'GET_PAYSLIP':
                 $this->askEmployeeId($senderId);
                 break;
+            case 'PRIVACY':  // 🔥 NEW PRIVACY FLOW
+                $this->showPrivacyOptions($senderId);
+                break;
+            case 'CHANGE_PASSWORD':
+                $this->askPrivacyEmployeeId($senderId);
+                break;
             default:
                 $this->showWelcome($senderId);
                 break;
         }
     }
 
-
-    // 🔥 STATE METHODS (unchanged logic, better organization)
-    protected function showWelcome(string $senderId): void
+    protected function askPrivacyEmployeeId(string $senderId): void
     {
-        Cache::put("bot_state_{$senderId}", ['state' => 'start'], self::CACHE_TTL);
-        $this->sendMessage($senderId, ['text' => '🎉 Welcome to RS8 HRD! Get your transactions now!']);
-        $this->sendQuickReplies($senderId, 'What transaction would you like?', [
-            ['title' => '📄 Get Payslip', 'payload' => 'GET_PAYSLIP']
-        ]);
+        Cache::put("bot_state_{$senderId}", ['state' => 'waiting_privacy_employee_id'], self::CACHE_TTL);
+        $this->sendMessage($senderId, ['text' => '👤 Enter your Employee ID:']);
+    }
+
+    protected function getPrivacyEmployeeId(string $senderId, string $employeeId): void
+    {
+        $employeeId = trim($employeeId);
+        $employee = Employee::where('employee_id', $employeeId)->first();
+
+        if (!$employee) {
+            $this->sendMessage($senderId, ['text' => "❌ Employee ID not found! Try again."]);
+            $this->askPrivacyEmployeeId($senderId);
+            return;
+        }
+
+        Cache::put("bot_state_{$senderId}", [
+            'state' => 'waiting_privacy_current_password',
+            'employee_id' => $employeeId,
+            'employee_name' => $employee->name
+        ], self::CACHE_TTL);
+
+        $this->askPrivacyCurrentPassword($senderId, $employee->name);
+    }
+
+    protected function askPrivacyCurrentPassword(string $senderId, string $employeeName): void
+    {
+        $stateData = Cache::get("bot_state_{$senderId}", []);
+        Cache::put("bot_state_{$senderId}", [
+            'state' => 'waiting_privacy_current_password',
+            'employee_id' => $stateData['employee_id'] ?? null,
+            'employee_name' => $employeeName
+        ], self::CACHE_TTL);
+
+        $this->sendMessage($senderId, ['text' => "🔐 Enter current password for {$employeeName}:"]);
+    }
+
+    protected function verifyPrivacyCurrentPassword(string $senderId, string $currentPassword): void
+    {
+        $stateData = Cache::get("bot_state_{$senderId}");
+        $employeeId = $stateData['employee_id'] ?? null;
+        $employeeName = $stateData['employee_name'] ?? null;
+
+        if (!$employeeId) {
+            $this->showWelcome($senderId);
+            return;
+        }
+
+        $employee = Employee::where('employee_id', $employeeId)->first();
+
+        if (!$employee || !$employee->verifyPassword($currentPassword)) {
+            $this->sendMessage($senderId, ['text' => "❌ Wrong current password! Try again."]);
+            $this->askPrivacyCurrentPassword($senderId, $employeeName);
+            return;
+        }
+
+        Cache::put("bot_state_{$senderId}", [
+            'state' => 'waiting_privacy_new_password',
+            'employee_id' => $employeeId
+        ], self::CACHE_TTL);
+
+        $this->sendMessage($senderId, ['text' => "✅ Current password verified!"]);
+        $this->askPrivacyNewPassword($senderId);
+    }
+
+    protected function askPrivacyNewPassword(string $senderId): void
+    {
+        $stateData = Cache::get("bot_state_{$senderId}", []);  // ✅ PRESERVE!
+        Cache::put("bot_state_{$senderId}", [
+            'state' => 'waiting_privacy_new_password',
+            'employee_id' => $stateData['employee_id'] ?? null   // ✅ KEEP IT!
+        ], self::CACHE_TTL);
+        $this->sendMessage($senderId, ['text' => '🔑 Enter your NEW password:']);
+    }
+
+    protected function askPrivacyConfirmPassword(string $senderId, string $newPassword): void
+    {
+        $stateData = Cache::get("bot_state_{$senderId}", []);
+
+        Cache::put("bot_state_{$senderId}", [           // ✅ Preserve ALL data
+            'state' => 'waiting_privacy_confirm_password',
+            'employee_id' => $stateData['employee_id'] ?? null,
+            'employee_name' => $stateData['employee_name'] ?? null,  // ✅ Add this
+            'new_password' => $newPassword
+        ], self::CACHE_TTL);
+
+        $this->sendMessage($senderId, ['text' => '🔄 Confirm new password:']);
+    }
+
+
+    protected function changePassword(string $senderId, string $confirmPassword): void
+    {
+        $stateData = Cache::get("bot_state_{$senderId}");
+        $employeeId = $stateData['employee_id'] ?? null;
+        $newPassword = $stateData['new_password'] ?? null;
+
+        if (!$employeeId || !$newPassword) {
+            $this->showWelcome($senderId);
+            return;
+        }
+
+        if ($newPassword !== $confirmPassword) {
+            $this->sendMessage($senderId, ['text' => '❌ Passwords do not match! Try again.']);
+            $this->askPrivacyNewPassword($senderId);
+            return;
+        }
+
+        $employee = Employee::where('employee_id', $employeeId)->first();
+        if (!$employee) {
+            $this->showWelcome($senderId);
+            return;
+        }
+
+        // 🔥 Update password (mutator will handle hashing if enabled)
+        $employee->password = $newPassword;
+        $employee->save();
+
+        $this->sendMessage($senderId, ['text' => '✅ Password changed successfully!']);
+        Cache::forget("bot_state_{$senderId}");
+        $this->sendMessage($senderId, ['text' => '✅ Done! Type "rs8" for another transaction.']);
     }
 
     protected function askEmployeeId(string $senderId): void
@@ -155,13 +318,93 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
         }
 
         Cache::put("bot_state_{$senderId}", [
+            'state' => 'waiting_password',
+            'employee_id' => $employeeId,
+            'employee_name' => $employee->name  // 🔥 Store name for later use
+        ], self::CACHE_TTL);
+
+        $this->askPassword($senderId, $employee->name);
+    }
+
+    protected function askPassword(string $senderId, string $employeeName): void
+    {
+        // 🔥 FIX: Get existing cache data first
+        $stateData = Cache::get("bot_state_{$senderId}", []);
+
+        Cache::put("bot_state_{$senderId}", [
+            'state' => 'waiting_password',
+            'employee_id' => $stateData['employee_id'] ?? null,
+            'employee_name' => $employeeName
+        ], self::CACHE_TTL);
+
+        $this->sendMessage($senderId, ['text' => "🔐 Enter password for {$employeeName}:"]);
+    }
+
+
+    protected function verifyPassword(string $senderId, string $password): void
+    {
+        $stateData = Cache::get("bot_state_{$senderId}");
+        $employeeId = $stateData['employee_id'] ?? null;
+        $employeeName = $stateData['employee_name'] ?? null; // 🔥 FIX: Get name from cache
+
+        if (!$employeeId) {
+            $this->showWelcome($senderId);
+            return;
+        }
+
+        $employee = Employee::where('employee_id', $employeeId)->first();
+
+        if (!$employee || !$employee->verifyPassword($password)) {
+            $this->sendMessage($senderId, ['text' => "❌ Wrong password! Try again."]);
+
+            // 🔥 FIX: Rebuild cache with BOTH employee_id AND employee_name
+            Cache::put("bot_state_{$senderId}", [
+                'state' => 'waiting_password',
+                'employee_id' => $employeeId,
+                'employee_name' => $employeeName
+            ], self::CACHE_TTL);
+
+            $this->askPassword($senderId, $employeeName);
+            return;
+        }
+
+        // 🔥 Password verified! Proceed to payslip date selection
+        Cache::put("bot_state_{$senderId}", [
             'state' => 'waiting_payslip_date',
             'employee_id' => $employeeId
         ], self::CACHE_TTL);
 
-        $this->sendMessage($senderId, ['text' => "✅ Found employee: {$employee->name}"]);
+        $this->sendMessage($senderId, ['text' => "✅ Password verified!"]);
         $this->askPayslipDate($senderId, $employeeId);
     }
+
+    protected function handleNewPassword(string $senderId, string $newPassword): void
+    {
+        if (strlen($newPassword) < 6) {
+            $this->sendMessage($senderId, ['text' => '❌ Password too short! Min 6 chars.']);
+            $this->askPrivacyNewPassword($senderId);
+            return;
+        }
+
+        $stateData = Cache::get("bot_state_{$senderId}", []);
+        $employeeId = $stateData['employee_id'] ?? null;  // ✅ Safe access!
+
+        if (!$employeeId) {
+            $this->showWelcome($senderId);
+            return;
+        }
+
+        Cache::put("bot_state_{$senderId}", [
+            'state' => 'waiting_privacy_confirm_password',
+            'employee_id' => $employeeId,
+            'new_password' => $newPassword
+        ], self::CACHE_TTL);
+
+        $this->sendMessage($senderId, ['text' => '🔄 Confirm new password:']);
+    }
+
+
+
 
     protected function askPayslipDate(string $senderId, string $employeeId): void
     {

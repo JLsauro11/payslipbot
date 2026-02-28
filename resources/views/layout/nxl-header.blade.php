@@ -61,133 +61,21 @@
                 </div>
                 <div class="dropdown nxl-h-item">
                     <a href="javascript:void(0);" data-bs-toggle="dropdown" role="button" data-bs-auto-close="outside">
-                        <img src="assets/images/avatar/1.png" alt="user-image" class="img-fluid user-avtar me-0" />
+                        <img src="{{ Auth::user()->avatar ? asset('assets/images/avatar/' . Auth::user()->avatar) : asset('assets/images/avatar/user-icon.jpeg') }}"
+                             alt="user-image" class="img-fluid user-avtar me-0"/>
                     </a>
                     <div class="dropdown-menu dropdown-menu-end nxl-h-dropdown nxl-user-dropdown">
                         <div class="dropdown-header">
                             <div class="d-flex align-items-center">
-                                <img src="assets/images/avatar/1.png" alt="user-image" class="img-fluid user-avtar" />
+                                <img src="{{ Auth::user()->avatar ? asset('assets/images/avatar/' . Auth::user()->avatar) : asset('assets/images/avatar/user-icon.jpeg') }}"
+                                     alt="user-image" class="img-fluid user-avtar"/>
                                 <div>
-                                    <h6 class="text-dark mb-0">Alexandra Della</h6>
-                                    <span class="fs-12 fw-medium text-muted">alex@example.com</span>
+                                    <h6 class="text-dark mb-0"></h6>
+                                    <span class="fs-12 fw-medium text-muted"></span>
                                 </div>
                             </div>
                         </div>
-                        <div class="dropdown">
-                            {{--<a href="javascript:void(0);" class="dropdown-item" data-bs-toggle="dropdown">--}}
-                                    {{--<span class="hstack">--}}
-                                        {{--<i class="wd-10 ht-10 border border-2 border-gray-1 bg-success rounded-circle me-2"></i>--}}
-                                        {{--<span>Active</span>--}}
-                                    {{--</span>--}}
-                                {{--<i class="feather-chevron-right ms-auto me-0"></i>--}}
-                            {{--</a>--}}
-                            {{--<div class="dropdown-menu">--}}
-                                {{--<a href="javascript:void(0);" class="dropdown-item">--}}
-                                        {{--<span class="hstack">--}}
-                                            {{--<i class="wd-10 ht-10 border border-2 border-gray-1 bg-warning rounded-circle me-2"></i>--}}
-                                            {{--<span>Always</span>--}}
-                                        {{--</span>--}}
-                                {{--</a>--}}
-                                {{--<a href="javascript:void(0);" class="dropdown-item">--}}
-                                        {{--<span class="hstack">--}}
-                                            {{--<i class="wd-10 ht-10 border border-2 border-gray-1 bg-success rounded-circle me-2"></i>--}}
-                                            {{--<span>Active</span>--}}
-                                        {{--</span>--}}
-                                {{--</a>--}}
-                                {{--<a href="javascript:void(0);" class="dropdown-item">--}}
-                                        {{--<span class="hstack">--}}
-                                            {{--<i class="wd-10 ht-10 border border-2 border-gray-1 bg-danger rounded-circle me-2"></i>--}}
-                                            {{--<span>Bussy</span>--}}
-                                        {{--</span>--}}
-                                {{--</a>--}}
-                                {{--<a href="javascript:void(0);" class="dropdown-item">--}}
-                                        {{--<span class="hstack">--}}
-                                            {{--<i class="wd-10 ht-10 border border-2 border-gray-1 bg-info rounded-circle me-2"></i>--}}
-                                            {{--<span>Inactive</span>--}}
-                                        {{--</span>--}}
-                                {{--</a>--}}
-                                {{--<a href="javascript:void(0);" class="dropdown-item">--}}
-                                        {{--<span class="hstack">--}}
-                                            {{--<i class="wd-10 ht-10 border border-2 border-gray-1 bg-dark rounded-circle me-2"></i>--}}
-                                            {{--<span>Disabled</span>--}}
-                                        {{--</span>--}}
-                                {{--</a>--}}
-                                {{--<div class="dropdown-divider"></div>--}}
-                                {{--<a href="javascript:void(0);" class="dropdown-item">--}}
-                                        {{--<span class="hstack">--}}
-                                            {{--<i class="wd-10 ht-10 border border-2 border-gray-1 bg-primary rounded-circle me-2"></i>--}}
-                                            {{--<span>Cutomization</span>--}}
-                                        {{--</span>--}}
-                                {{--</a>--}}
-                            {{--</div>--}}
-                        </div>
-                        {{--<div class="dropdown-divider"></div>--}}
-                        {{--<div class="dropdown">--}}
-                            {{--<a href="javascript:void(0);" class="dropdown-item" data-bs-toggle="dropdown">--}}
-                                    {{--<span class="hstack">--}}
-                                        {{--<i class="feather-dollar-sign me-2"></i>--}}
-                                        {{--<span>Subscriptions</span>--}}
-                                    {{--</span>--}}
-                                {{--<i class="feather-chevron-right ms-auto me-0"></i>--}}
-                            {{--</a>--}}
-                            {{--<div class="dropdown-menu">--}}
-                                {{--<a href="javascript:void(0);" class="dropdown-item">--}}
-                                        {{--<span class="hstack">--}}
-                                            {{--<i class="wd-5 ht-5 bg-gray-500 rounded-circle me-3"></i>--}}
-                                            {{--<span>Plan</span>--}}
-                                        {{--</span>--}}
-                                {{--</a>--}}
-                                {{--<a href="javascript:void(0);" class="dropdown-item">--}}
-                                        {{--<span class="hstack">--}}
-                                            {{--<i class="wd-5 ht-5 bg-gray-500 rounded-circle me-3"></i>--}}
-                                            {{--<span>Billings</span>--}}
-                                        {{--</span>--}}
-                                {{--</a>--}}
-                                {{--<a href="javascript:void(0);" class="dropdown-item">--}}
-                                        {{--<span class="hstack">--}}
-                                            {{--<i class="wd-5 ht-5 bg-gray-500 rounded-circle me-3"></i>--}}
-                                            {{--<span>Referrals</span>--}}
-                                        {{--</span>--}}
-                                {{--</a>--}}
-                                {{--<a href="javascript:void(0);" class="dropdown-item">--}}
-                                        {{--<span class="hstack">--}}
-                                            {{--<i class="wd-5 ht-5 bg-gray-500 rounded-circle me-3"></i>--}}
-                                            {{--<span>Payments</span>--}}
-                                        {{--</span>--}}
-                                {{--</a>--}}
-                                {{--<a href="javascript:void(0);" class="dropdown-item">--}}
-                                        {{--<span class="hstack">--}}
-                                            {{--<i class="wd-5 ht-5 bg-gray-500 rounded-circle me-3"></i>--}}
-                                            {{--<span>Statements</span>--}}
-                                        {{--</span>--}}
-                                {{--</a>--}}
-                                {{--<div class="dropdown-divider"></div>--}}
-                                {{--<a href="javascript:void(0);" class="dropdown-item">--}}
-                                        {{--<span class="hstack">--}}
-                                            {{--<i class="wd-5 ht-5 bg-gray-500 rounded-circle me-3"></i>--}}
-                                            {{--<span>Subscriptions</span>--}}
-                                        {{--</span>--}}
-                                {{--</a>--}}
-                            {{--</div>--}}
-                        {{--</div>--}}
-                        {{--<div class="dropdown-divider"></div>--}}
-                        {{--<a href="javascript:void(0);" class="dropdown-item">--}}
-                            {{--<i class="feather-user"></i>--}}
-                            {{--<span>Profile Details</span>--}}
-                        {{--</a>--}}
-                        {{--<a href="javascript:void(0);" class="dropdown-item">--}}
-                            {{--<i class="feather-activity"></i>--}}
-                            {{--<span>Activity Feed</span>--}}
-                        {{--</a>--}}
-                        {{--<a href="javascript:void(0);" class="dropdown-item">--}}
-                            {{--<i class="feather-dollar-sign"></i>--}}
-                            {{--<span>Billing Details</span>--}}
-                        {{--</a>--}}
-                        {{--<a href="javascript:void(0);" class="dropdown-item">--}}
-                            {{--<i class="feather-bell"></i>--}}
-                            {{--<span>Notifications</span>--}}
-                        {{--</a>--}}
-                        <a href="javascript:void(0);" class="dropdown-item">
+                        <a href="#" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#accountSettingsModal">
                             <i class="feather-settings"></i>
                             <span>Account Settings</span>
                         </a>
@@ -203,3 +91,6 @@
         <!--! [End] Header Right !-->
     </div>
 </header>
+
+
+

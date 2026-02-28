@@ -26,9 +26,6 @@
             opacity: 0;
             transition: opacity 0.2s ease;
         }
-        .password-toggle:hover {
-            color: #ea4d4d;
-        }
         .password-toggle.show {
             opacity: 1;
         }
@@ -170,7 +167,12 @@
                                     Object.values(xhr.responseJSON.errors).flat().join(', ') :
                                     errorMsg);
                         }
-                        Swal.fire("Error!", errorMsg, { icon: "error", confirmButtonColor: "#dc3545" });
+                        Swal.fire({
+                            icon: "error",
+                            title: "Error",
+                            text: errorMsg,
+                            confirmButtonColor: "#dc3545"
+                        });
                     },
                     complete: function() {
                         $btn.prop('disabled', false);

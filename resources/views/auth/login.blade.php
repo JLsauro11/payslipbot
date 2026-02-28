@@ -55,7 +55,7 @@
                                     </div>
                                     <div class="d-flex align-items-center justify-content-between">
                                         <div>
-                                            <a href="{{route('forgot-password')}}" class="fs-11 text-primary">Forget password?</a>
+                                            <a href="{{route('forgot-password')}}" class="fs-11 text-primary">Forgot password?</a>
                                         </div>
                                     </div>
                                     <div class="mt-5">
@@ -100,9 +100,6 @@
                     $passwordInput.attr('type', 'password');
                     $toggleIcon.removeClass('feather-eye').addClass('feather-eye-off');
                 }
-
-                // Reinitialize feather icons after toggle
-                feather.replace();
             });
 
             $('#login-form').on('submit', function(e) {
@@ -131,8 +128,10 @@
                     },
 
                     error: function(xhr) {
-                        Swal.fire("Login Failed!", xhr.responseJSON.message, {
+                        Swal.fire({
                             icon: "error",
+                            title: "Error",
+                            text: xhr.responseJSON.message,
                             confirmButtonColor: "#dc3545"
                         });
                     },

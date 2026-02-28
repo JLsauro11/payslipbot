@@ -13,7 +13,7 @@
 
     .rs8-logo-full {
         vertical-align: middle !important;
-        max-width: 200px !important; /* Adjust to fit */
+        max-width: 150px !important; /* Adjust to fit */
     }
 </style>
 <nav class="nxl-navigation">

@@ -18,6 +18,18 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         if ($request->ajax()) {
+            $validator = Validator::make($request->all(), [
+                'username' => 'required|string|max:255',
+                'password' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $validator->errors()->first()
+                ], 422);
+            }
+
             $credentials = $request->only('username', 'password');
 
             $user = User::whereRaw('username = BINARY ?', [$credentials['username']])->first();
@@ -28,7 +40,6 @@ class AuthController extends Controller
                 ], 401);
             }
 
-            // FIXED: Proper if-else structure
             if (Hash::check($credentials['password'], $user->password)) {
                 Auth::login($user);
                 return response()->json([
@@ -46,6 +57,7 @@ class AuthController extends Controller
 
         return view('auth.login');
     }
+
 
 
     public function logout(Request $request)

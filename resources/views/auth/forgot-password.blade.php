@@ -94,10 +94,12 @@
                         if (xhr.responseJSON && xhr.responseJSON.message) {
                             errorMsg = xhr.responseJSON.message;
                         }
-                        Swal.fire("Error!", errorMsg, {
+                        Swal.fire({
                             icon: "error",
+                            title: "Error",
+                            text: errorMsg,
                             confirmButtonColor: "#dc3545"
-                        });
+                    });
                     },
                     complete: function() {
                         $btn.prop('disabled', false).html('Send Code');

@@ -54,6 +54,7 @@ Route::controller(AuthController::class)->middleware('auth')->group( function() 
 
 Route::controller(HomeController::class)->middleware('auth')->group(function() {
     Route::get('dashboard', 'index')->name('home.index');
+    Route::post('account/update','updateAccount')->name('account.update');
 });
 
 Route::controller(EmployeeController::class)->middleware('auth')->group(function() {
@@ -63,6 +64,8 @@ Route::controller(EmployeeController::class)->middleware('auth')->group(function
     Route::get('employees/{employee}', 'show')->name('employees.show');
     Route::put('employees/{employee}',  'update')->name('employees.update');
     Route::delete('employees/{employee}', 'destroy')->name('employees.destroy');
+    Route::post('/employees/delete-selected', 'bulkDelete')->name('employees.multi-delete');
+
 });
 
 Route::controller(PayslipController::class)->middleware('auth')->group(function() {
@@ -73,11 +76,8 @@ Route::controller(PayslipController::class)->middleware('auth')->group(function(
     Route::put('payslips/{payslip}', 'update')->name('payslips.update');
     Route::delete('payslips/{payslip}', 'destroy')->name('payslips.destroy');
     Route::post('payslips/multi-store', 'multiStore')->name('payslips.multi-store');
+    Route::post('/payslips/delete-selected', 'bulkDelete')->name('payslips.multi-delete');
 });
-
-Route::post('/payslips/delete-selected', [PayslipController::class, 'bulkDelete'])
-    ->middleware('auth')
-    ->name('payslips.multi-delete');
 
 
 

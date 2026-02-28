@@ -705,7 +705,7 @@
             }).then((result) => {
                 if (result.isConfirmed || result.value === true) {
                 $.ajax({
-                    url: baseURL + '/payslips/delete-selected',
+                    url: '{{ route("payslips.multi-delete") }}',
                     type: 'POST',  // ✅ Same as single delete
                     data: {
                         ids: selectedIds,

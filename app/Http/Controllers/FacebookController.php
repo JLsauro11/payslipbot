@@ -11,7 +11,7 @@ use App\Models\Employee;
 use Carbon\Carbon;
 use Exception;
 
-class FacebookController extends Controller // 🔥 FIXED: extends Controller
+class FacebookController extends Controller
 {
     private const CACHE_TTL = 3600;
     private const PAYSLIP_DONE_TTL = 1800;
@@ -62,7 +62,6 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
             return;
         }
 
-        // Reset
         $cleanText = trim(strtolower($text));
         if ($cleanText === 'rs8') {
             Cache::forget("bot_state_{$senderId}");
@@ -70,7 +69,6 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
             return;
         }
 
-        // Strip emojis and any non-letter/number characters before quick-reply matching
         $textWithoutEmoji = preg_replace('/[^\p{L}\p{N}\s]/u', '', $text);
         $cleanTextNoEmoji = trim(strtolower($textWithoutEmoji));
 
@@ -94,7 +92,6 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
     }
 
 
-    // 🔥 STATE METHODS (unchanged logic, better organization)
     protected function showWelcome(string $senderId): void
     {
         Cache::put("bot_state_{$senderId}", ['state' => 'start'], self::CACHE_TTL);
@@ -122,7 +119,7 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
             case 'waiting_employee_id':
                 $this->getEmployeeId($senderId, $text);
                 break;
-            case 'waiting_password':  // 🔥 NEW STATE
+            case 'waiting_password':
                 $this->verifyPassword($senderId, $text);
                 break;
             case 'waiting_payslip_date':
@@ -158,14 +155,14 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
     {
         Log::info('🎛️ POSTBACK', ['sender' => $senderId, 'payload' => $payload]);
 
-        switch ($payload) {  // 🔥 Changed from match to switch
+        switch ($payload) {
             case 'GET_STARTED':
                 $this->showWelcome($senderId);
                 break;
             case 'GET_PAYSLIP':
                 $this->askEmployeeId($senderId);
                 break;
-            case 'PRIVACY':  // 🔥 NEW PRIVACY FLOW
+            case 'PRIVACY':
                 $this->showPrivacyOptions($senderId);
                 break;
             case 'CHANGE_PASSWORD':
@@ -245,10 +242,10 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
 
     protected function askPrivacyNewPassword(string $senderId): void
     {
-        $stateData = Cache::get("bot_state_{$senderId}", []);  // ✅ PRESERVE!
+        $stateData = Cache::get("bot_state_{$senderId}", []);
         Cache::put("bot_state_{$senderId}", [
             'state' => 'waiting_privacy_new_password',
-            'employee_id' => $stateData['employee_id'] ?? null   // ✅ KEEP IT!
+            'employee_id' => $stateData['employee_id'] ?? null
         ], self::CACHE_TTL);
         $this->sendMessage($senderId, ['text' => '🔑 Enter your NEW password:']);
     }
@@ -257,10 +254,10 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
     {
         $stateData = Cache::get("bot_state_{$senderId}", []);
 
-        Cache::put("bot_state_{$senderId}", [           // ✅ Preserve ALL data
+        Cache::put("bot_state_{$senderId}", [
             'state' => 'waiting_privacy_confirm_password',
             'employee_id' => $stateData['employee_id'] ?? null,
-            'employee_name' => $stateData['employee_name'] ?? null,  // ✅ Add this
+            'employee_name' => $stateData['employee_name'] ?? null,
             'new_password' => $newPassword
         ], self::CACHE_TTL);
 
@@ -291,7 +288,6 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
             return;
         }
 
-        // 🔥 Update password (mutator will handle hashing if enabled)
         $employee->password = $newPassword;
         $employee->save();
 
@@ -320,7 +316,7 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
         Cache::put("bot_state_{$senderId}", [
             'state' => 'waiting_password',
             'employee_id' => $employeeId,
-            'employee_name' => $employee->name  // 🔥 Store name for later use
+            'employee_name' => $employee->name
         ], self::CACHE_TTL);
 
         $this->askPassword($senderId, $employee->name);
@@ -328,7 +324,6 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
 
     protected function askPassword(string $senderId, string $employeeName): void
     {
-        // 🔥 FIX: Get existing cache data first
         $stateData = Cache::get("bot_state_{$senderId}", []);
 
         Cache::put("bot_state_{$senderId}", [
@@ -345,7 +340,7 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
     {
         $stateData = Cache::get("bot_state_{$senderId}");
         $employeeId = $stateData['employee_id'] ?? null;
-        $employeeName = $stateData['employee_name'] ?? null; // 🔥 FIX: Get name from cache
+        $employeeName = $stateData['employee_name'] ?? null;
 
         if (!$employeeId) {
             $this->showWelcome($senderId);
@@ -357,7 +352,6 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
         if (!$employee || !$employee->verifyPassword($password)) {
             $this->sendMessage($senderId, ['text' => "❌ Wrong password! Try again."]);
 
-            // 🔥 FIX: Rebuild cache with BOTH employee_id AND employee_name
             Cache::put("bot_state_{$senderId}", [
                 'state' => 'waiting_password',
                 'employee_id' => $employeeId,
@@ -368,7 +362,6 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
             return;
         }
 
-        // 🔥 Password verified! Proceed to payslip date selection
         Cache::put("bot_state_{$senderId}", [
             'state' => 'waiting_payslip_date',
             'employee_id' => $employeeId
@@ -387,7 +380,7 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
         }
 
         $stateData = Cache::get("bot_state_{$senderId}", []);
-        $employeeId = $stateData['employee_id'] ?? null;  // ✅ Safe access!
+        $employeeId = $stateData['employee_id'] ?? null;
 
         if (!$employeeId) {
             $this->showWelcome($senderId);
@@ -426,7 +419,6 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
         $this->sendQuickReplies($senderId, '📅 Select payslip:', $optionsText);
     }
 
-    // 🔥 DATABASE METHODS (unchanged, well-structured)
     protected function generatePayslipOptions(Carbon $now, string $employeeId): array
     {
         $options = [];
@@ -454,13 +446,11 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
         $monthNum = $monthDate->month;
         $monthShort = $monthDate->shortMonthName;
 
-        // 15th cutoff
         $date1 = sprintf('%02d/15/%04d', $monthNum, $monthYear);
         if ($this->payslipExists($employeeId, $date1)) {
             $options[] = ['display' => "{$monthShort} 15", 'date' => $date1];
         }
 
-        // End of month
         $day2 = $monthDate->daysInMonth;
         $date2 = sprintf('%02d/%02d/%04d', $monthNum, $day2, $monthYear);
 
@@ -472,7 +462,6 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
         return $options;
     }
 
-    // 🔥 MESSAGING METHODS (Laravel HTTP client)
     protected function sendMessage(string $recipientId, array $message): void
     {
         $this->sendFacebookMessage([
@@ -527,7 +516,6 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
         ]);
     }
 
-    // 🔥 UTILITY METHODS
     private function isEchoMessage(string $senderId): bool
     {
         $stateData = Cache::get("bot_state_{$senderId}", []);
@@ -587,7 +575,7 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
             return;
         }
 
-        $pdfUrl = config('app.url') . "/payslipbot/payslips/{$payslip->payslip}"; // 🔥 CONFIG-BASED URL
+        $pdfUrl = config('app.url') . "/payslipbot/payslips/{$payslip->payslip}";
         $this->sendPayslipTemplate($senderId, $pdfUrl);
 
         Cache::put("bot_state_{$senderId}", [
@@ -609,7 +597,6 @@ class FacebookController extends Controller // 🔥 FIXED: extends Controller
         $this->sendMessage($senderId, ['text' => '✅ Done! Type "rs8" for another transaction.']);
     }
 
-    // 🔥 VALIDATION & VERIFICATION
     private function isValidPayload(array $input): bool
     {
         $valid = isset($input['entry'][0]['messaging'][0]);

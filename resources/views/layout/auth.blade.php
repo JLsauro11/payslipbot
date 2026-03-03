@@ -47,6 +47,13 @@
             border-color: #ea4d4d !important;
             box-shadow: none !important;
         }
+        .input-group>.form-control, .input-group>.form-select {
+            position: relative;
+            flex: 1 1 auto;
+            width: 1%;
+            min-width: 0;
+            border-radius: 5px !important;
+        }
     </style>
     @stack('css')
 </head>

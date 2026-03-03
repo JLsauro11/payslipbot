@@ -575,7 +575,8 @@ class FacebookController extends Controller
             return;
         }
 
-        $pdfUrl = config('app.url') . "/payslipbot/payslips/{$payslip->payslip}";
+//        $pdfUrl = config('app.url') . "/payslipbot/payslips/{$payslip->payslip}";
+        $pdfUrl = "https://pulvinately-unprevented-codi.ngrok-free.dev/payslipbot/payslips/{$payslip->payslip}";
         $this->sendPayslipTemplate($senderId, $pdfUrl);
 
         Cache::put("bot_state_{$senderId}", [

@@ -17,7 +17,9 @@ class EmployeeController extends Controller
 
     public function data()
     {
-        $employees = Employee::select('id', 'employee_id', 'name', 'password', 'position', 'department', 'status')->get();
+        $employees = Employee::with(['position', 'department', 'area'])
+            ->select('id', 'employee_id', 'bio_number', 'name', 'password', 'position_id', 'department_id', 'area_id', 'status')
+            ->get();
 
         return response()->json([
             'data' => $employees
@@ -73,7 +75,7 @@ class EmployeeController extends Controller
             'employee_number' => [
                 'required',
                 'max:20',
-                Rule::unique('employees', 'employee_id')->ignore($employee->id)
+                Rule::unique('employees', 'id')->ignore($employee->id)
             ],
             'name' => 'required|string|max:255',
             'position' => 'nullable|string|max:100',
@@ -115,7 +117,7 @@ class EmployeeController extends Controller
     public function destroy(Employee $employee)
     {
         // ✅ 1. Get ALL payslips for this employee first
-        $payslips = Payslip::where('employee_id', $employee->employee_id)->get();
+        $payslips = Payslip::where('id', $employee->id)->get();
 
         // ✅ 2. Delete ALL associated files
         foreach ($payslips as $payslip) {
@@ -126,7 +128,7 @@ class EmployeeController extends Controller
         }
 
         // ✅ 3. Delete ALL payslips (DB records)
-        Payslip::where('employee_id', $employee->employee_id)->delete();
+        Payslip::where('id', $employee->id)->delete();
 
         // ✅ 4. Delete employee
         $employee->delete();
@@ -152,14 +154,14 @@ class EmployeeController extends Controller
             $employee = Employee::find($id);
             if ($employee) {
                 // Delete payslips first
-                $payslips = Payslip::where('employee_id', $employee->employee_id)->get();
+                $payslips = Payslip::where('id', $employee->id)->get();
                 foreach ($payslips as $payslip) {
                     $filePath = public_path('payslips/' . $payslip->payslip);
                     if (File::exists($filePath)) {
                         File::delete($filePath);
                     }
                 }
-                Payslip::where('employee_id', $employee->employee_id)->delete();
+                Payslip::where('id', $employee->id)->delete();
                 $employee->delete();
                 $deletedCount++;
             }

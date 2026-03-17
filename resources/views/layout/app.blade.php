@@ -239,23 +239,129 @@
 
 </main>
 
+{{-- Department Modal --}}
+<div class="modal fade" id="departmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="departmentModalTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="departmentForm">
+            @csrf
+            <!-- ✅ FIX: Proper hidden ID field -->
+                <input type="hidden" id="id" name="id" value="">
+
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Department</label>
+                        <input type="text" class="form-control" name="department_name" id="department_name" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="departmentSubmitBtn">
+                        <span class="spinner-border spinner-border-sm me-1 d-none" id="departmentSpinner"></span>
+                        Save
+                    </button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>
+
+{{-- Position Modal --}}
+<div class="modal fade" id="positionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="positionModalTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="positionForm">
+            @csrf
+            <!-- ✅ FIX: Proper hidden ID field -->
+                <input type="hidden" id="id" name="id" value="">
+
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Position</label>
+                        <input type="text" class="form-control" name="position_name" id="position_name" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="positionSubmitBtn">
+                        <span class="spinner-border spinner-border-sm me-1 d-none" id="positionSpinner"></span>
+                        Save
+                    </button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>
+
+{{-- Area Modal --}}
+<div class="modal fade" id="areaModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="areaModalTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="areaForm">
+            @csrf
+            <!-- ✅ FIX: Proper hidden ID field -->
+                <input type="hidden" id="id" name="id" value="">
+
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Area</label>
+                        <input type="text" class="form-control" name="area_name" id="area_name" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="areaSubmitBtn">
+                        <span class="spinner-border spinner-border-sm me-1 d-none" id="areaSpinner"></span>
+                        Save
+                    </button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>
+
 {{-- Employee Modal --}}
 <div class="modal fade" id="employeeModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="modalTitle"></h5>
+                <h5 class="modal-title" id="employeeModalTitle"></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
                 <form id="employeeForm">
                 @csrf
                 <!-- ✅ FIX: Proper hidden ID field -->
-                    <input type="hidden" id="employee_id" name="employee_id" value="">
+                    <input type="hidden" id="id" name="id" value="">
 
                     <div class="modal-body">
                         <div class="mb-3">
                             <label class="form-label">Employee Number</label>
                             <input type="text" class="form-control" name="employee_number" id="employee_number" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">BIO Number</label>
+                            <input type="text" class="form-control" name="bio_number" id="bio_number" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Area<span class="text-danger">*</span></label>
+                            <select class="form-control" name="area_id" id="area_id" required>
+                                <option value="">-- Select Area --</option>
+                            </select>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Employee Name</label>
@@ -267,12 +373,16 @@
                             <div class="form-text">Leave blank to keep current password (RS8-XXXX auto-generated on create)</div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Position</label>
-                            <input type="text" class="form-control" name="position" id="position">
+                            <label class="form-label">Position<span class="text-danger">*</span></label>
+                            <select class="form-control" name="position_id" id="position_id" required>
+                                <option value="">-- Select Position --</option>
+                            </select>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Department</label>
-                            <input type="text" class="form-control" name="department" id="department">
+                            <label class="form-label">Department<span class="text-danger">*</span></label>
+                            <select class="form-control" name="department_id" id="department_id" required>
+                                <option value="">-- Select Department --</option>
+                            </select>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Status</label>
@@ -284,8 +394,8 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary" id="submitBtn">
-                            <span class="spinner-border spinner-border-sm me-1 d-none" id="spinner"></span>
+                        <button type="submit" class="btn btn-primary" id="employeeSubmitBtn">
+                            <span class="spinner-border spinner-border-sm me-1 d-none" id="employeeSpinner"></span>
                             Save
                         </button>
                     </div>
@@ -300,7 +410,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="modalTitle">Upload Payslip</h5>
+                <h5 class="modal-title" id="payslipModalTitle">Upload Payslip</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="payslipForm" enctype="multipart/form-data">
@@ -341,8 +451,8 @@
 
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary" id="submitBtn">
-                        <span class="spinner-border spinner-border-sm me-1 d-none" id="spinner"></span>
+                    <button type="submit" class="btn btn-primary" id="payslipSubmitBtn">
+                        <span class="spinner-border spinner-border-sm me-1 d-none" id="payslipSpinner"></span>
                         Upload Payslip
                     </button>
                 </div>

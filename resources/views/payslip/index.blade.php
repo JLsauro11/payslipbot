@@ -114,7 +114,7 @@
                                         <input type="checkbox" id="selectAll" class="select-all-checkbox">
                                     </th>
 
-                                    <th>Employee ID</th>
+                                    <th>ID</th>
                                     <th>Employee Number</th>
                                     <th>Employee Name</th>
                                     <th>Payslip</th>
@@ -281,7 +281,7 @@
                     width: "15%"
                 }
             ],
-            order: [[2, 'desc']],
+            order: [[1, 'desc']],
             pageLength: 25,
             responsive: true,
             language: {

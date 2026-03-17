@@ -7,6 +7,9 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\PayslipController;
 use App\Http\Controllers\FacebookController;
 use App\Http\Controllers\PrivacyController;
+use App\Http\Controllers\PositionController;
+use App\Http\Controllers\AreaController;
+use App\Http\Controllers\DepartmentController;
 
 // 🔥 #1 PUBLIC ROUTES - NO MIDDLEWARE
 Route::get('/payslipbot/payslips/{filename}', function ($filename) {
@@ -66,6 +69,38 @@ Route::controller(EmployeeController::class)->middleware('auth')->group(function
     Route::delete('employees/{employee}', 'destroy')->name('employees.destroy');
     Route::post('/employees/delete-selected', 'bulkDelete')->name('employees.multi-delete');
 
+});
+
+Route::controller(PositionController::class)->middleware('auth')->group(function() {
+    Route::get('positions', 'index')->name('positions.index');
+    Route::get('positions/data', 'data')->name('positions.data');
+    Route::post('positions', 'store')->name('positions.store');
+    Route::get('positions/{position}', 'show')->name('positions.show');
+    Route::put('positions/{position}',  'update')->name('positions.update');
+    Route::delete('positions/{position}', 'destroy')->name('positions.destroy');
+    Route::post('/positions/delete-selected', 'bulkDelete')->name('positions.multi-delete');
+
+});
+
+Route::controller(AreaController::class)->middleware('auth')->group(function() {
+    Route::get('areas', 'index')->name('areas.index');
+    Route::get('areas/data', 'data')->name('areas.data');
+    Route::post('areas', 'store')->name('areas.store');
+    Route::get('areas/{area}', 'show')->name('areas.show');
+    Route::put('areas/{area}',  'update')->name('areas.update');
+    Route::delete('areas/{area}', 'destroy')->name('areas.destroy');
+    Route::post('/areas/delete-selected', 'bulkDelete')->name('areas.multi-delete');
+
+});
+
+Route::controller(DepartmentController::class)->middleware('auth')->group(function() {
+    Route::get('departments', 'index')->name('departments.index');
+    Route::get('departments/data', 'data')->name('departments.data');
+    Route::post('departments', 'store')->name('departments.store');
+    Route::get('departments/{department}', 'show')->name('departments.show');
+    Route::put('departments/{department}',  'update')->name('departments.update');
+    Route::delete('departments/{department}', 'destroy')->name('departments.destroy');
+    Route::post('/departments/delete-selected', 'bulkDelete')->name('departments.multi-delete');
 });
 
 Route::controller(PayslipController::class)->middleware('auth')->group(function() {

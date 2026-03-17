@@ -13,10 +13,13 @@ return new class extends Migration
     {
         Schema::create('employees', function (Blueprint $table) {
             $table->id();
-            $table->string('employee_id')->unique();  // ← Already exists
+            $table->string('employee_id')->unique();
+            $table->string('bio_number')->unique()->nullable();
             $table->string('name');
-            $table->string('position')->nullable();
-            $table->string('department')->nullable();
+            $table->foreignId('position_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->foreignId('department_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->foreignId('area_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->string('password')->nullable();
             $table->enum('status', ['Active', 'Inactive'])->default('Active');
             $table->timestamps();
         });

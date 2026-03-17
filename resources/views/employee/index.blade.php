@@ -11,6 +11,13 @@
         .table-responsive div.dataTables_wrapper div.dataTables_length select {
             padding: 3px 15px;
         }
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 45px;
+            position: absolute;
+            top: 1px;
+            right: 5px;
+            width: 20px;
+        }
         .fixed-bottom-multi-delete {
             position: fixed;
             bottom: 20px;
@@ -102,9 +109,12 @@
                                 <thead>
                                 <tr>
                                     <th class="dt-body-center text-center checkbox-center-th" style="width: 5%">
-                                        <input type="checkbox" id="selectAll" class="select-all-checkbox">
+                                        <input type="checkbox" id="employeeSelectAll" class="select-all-checkbox">
                                     </th>
+                                    <th>ID</th>
                                     <th>Employee Number</th>
+                                    <th>Bio Number</th>
+                                    <th>Area</th>
                                     <th>Employee Name</th>
                                     <th>Payslip Password</th>
                                     <th>Position</th>
@@ -128,7 +138,7 @@
                 <div class="col-auto">
                     <button id="employee-multiDeleteBtn" class="btn btn-danger btn-lg shadow px-4" style="display: none;">
                         <i class="fas fa-trash me-2"></i> Delete Selected
-                        <span class="badge bg-light text-danger ms-2" id="selectedCount">0</span>
+                        <span class="badge bg-light text-danger ms-2" id="employeeSelectedCount">0</span>
                     </button>
                 </div>
             </div>
@@ -163,7 +173,18 @@
                     },
                     width: "5%"
                 },
+                { data: 'id', name: 'id', visible: false },
                 { data: 'employee_id', name: 'employee_id' },
+                {
+                    data: 'bio_number',
+                    name: 'bio_number',
+                    defaultContent: '-'
+                },
+                {
+                    data: 'area',  // ✅ Still works via your accessor
+                    name: 'area',
+                    defaultContent: '-'
+                },
                 { data: 'name', name: 'name' },
                 {
                     data: 'password',
@@ -182,8 +203,16 @@
                     },
                     width: "160px"
                 },
-                { data: 'position', name: 'position', defaultContent: '-' },
-                { data: 'department', name: 'department', defaultContent: '-' },
+                {
+                    data: 'position',  // ✅ Still works via your accessor
+                    name: 'position',
+                    defaultContent: '-'
+                },
+                {
+                    data: 'department',  // ✅ Still works via your accessor
+                    name: 'department',
+                    defaultContent: '-'
+                },
                 {
                     data: 'status',
                     name: 'status',
@@ -239,36 +268,65 @@
         // Add/Edit Modal
         window.openAddModal = function() {
             $('#employeeForm')[0].reset();
-            $('#employee_id').val('');
+            $('#id').val('');
             $('.password-field').hide();
-            $('#modalTitle').text('Add Employee');
-            $('#employeeModal').modal('show');
-        };
+            $('#employeeModalTitle').text('Add Employee');
 
+            // ✅ 1. Open modal FIRST
+            $('#employeeModal').modal('show');
+
+            // ✅ 2. THEN load dropdowns
+            Promise.all([
+                loadAreas(),
+                loadDepartments(),
+                loadPositions()
+            ]);
+        };
+        
         $(document).on('click', '.edit-btn', function() {
             let id = $(this).data('id');
-
-            // Use route name with parameter replacement
             let url = `{{ route('employees.show', ':id') }}`.replace(':id', id);
 
             $.ajax({
                 url: url,
                 method: 'GET',
                 success: function(employee) {
-                    // Fill form with employee data
-                    $('#employee_id').val(employee.id);
-                    $('#employee_number').val(employee.employee_id);
+                    console.log('Employee:', employee);
+
+                    // ✅ Fill ALL form fields
+                    $('#id').val(employee.id);
+                    $('#employee_number').val(employee.employee_number || employee.employee_id);
+                    $('#bio_number').val(employee.bio_number || '');
                     $('#name').val(employee.name);
-                    $('#position').val(employee.position || '');
-                    $('#department').val(employee.department || '');
-                    $('#status').val(employee.status);
+                    $('#position_id').val(employee.position || '');
+                    $('#department_id').val(employee.department || '');
+                    $('#status').val(employee.status || 'Active');
 
-                    // ✅ Show password field ONLY on edit
+                    // ✅ Show password field on edit
                     $('.password-field').show();
-                    $('#password').val(employee.password || '');
+                    $('#password').val('');
 
-                    $('#modalTitle').text('Edit Employee');
+                    $('#employeeModalTitle').text('Edit Employee');
+
+                    // ✅ 1. Open modal FIRST
                     $('#employeeModal').modal('show');
+
+                    // ✅ Load both dropdowns in parallel
+                    Promise.all([
+                        loadAreas(),
+                        loadDepartments(),
+                        loadPositions()  // ✅ Add this
+                    ]).then(function() {
+                        if (employee.area_id) {
+                            $('#area_id').val(employee.area_id).trigger('change');
+                        }
+                        if (employee.department_id) {
+                            $('#department_id').val(employee.department_id).trigger('change');
+                        }
+                        if (employee.position_id) {
+                            $('#position_id').val(employee.position_id).trigger('change');
+                        }
+                    });
                 },
                 error: function() {
                     Swal.fire('Error!', 'Employee not found', 'error');
@@ -277,18 +335,20 @@
         });
 
 
+
+
         $('#employeeForm').on('submit', function(e) {
             e.preventDefault();
 
-            let employeeId = $('#employee_id').val();
+            let employeeId = $('#id').val();
             let url = employeeId ? `{{ route("employees.update", ":id") }}`.replace(':id', employeeId) : '{{ route("employees.store") }}';
 
             let formData = new FormData(this);
             if (employeeId) {
                 formData.append('_method', 'PUT');  // Method spoofing
             }
-            let $btn = $('#submitBtn');
-            let $spinner = $('#spinner');
+            let $btn = $('#employeeSubmitBtn');
+            let $spinner = $('#employeeSpinner');
 
             $btn.prop('disabled', true);
             $spinner.removeClass('d-none');
@@ -336,16 +396,20 @@
         $(document).on('click', '.delete-btn', function(e) {
             e.preventDefault();
             let employeeId = $(this).data('id');
-            let url = `{{ route('employees.destroy', ':id') }}`.replace(':id', employeeId);
+            let url = `{{ route('employees.destroy', ':employee') }}`.replace(':employee', employeeId);
             Swal.fire({
                 title: 'Are you sure?', text: "You won't be able to revert this!",
-                icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
                 confirmButtonText: 'Yes, delete it!'
             }).then((result) => {
-                if (result.isConfirmed) {
+                if (result.isConfirmed || result.value === true) {
                 $.ajax({
-                    url: url, type: 'POST', data: {
-                        _method: 'DELETE',
+                    url: url,
+                    method: 'DELETE',  // ✅ Native DELETE
+                    data: {
                         _token: $('meta[name="csrf-token"]').attr('content')
                     },
                     success: function(response) {
@@ -361,8 +425,9 @@
         });
 
 
+
         // Select All checkbox handler (NEW)
-        $('#employeesTable thead').on('change', '#selectAll', function() {
+        $('#employeesTable thead').on('change', '#employeeSelectAll', function() {
             let isChecked = this.checked;
             $('#employeesTable tbody .row-select').prop('checked', isChecked);
             if (isChecked) {
@@ -391,11 +456,11 @@
 
         function updateSelectionUI() {
             let count = selectedIds.length;
-            $('#selectedCount').text(count);
+            $('#employeeSelectedCount').text(count);
             $('#employee-multiDeleteBtn').toggle(count > 0);
-            let selectAll = $('#selectAll')[0];
+            let employeeSelectAll = $('#employeeSelectAll')[0];
             let totalCheckboxes = $('#employeesTable tbody .row-select').length;
-            selectAll.checked = count > 0 && count >= totalCheckboxes;
+            employeeSelectAll.checked = count > 0 && count >= totalCheckboxes;
         }
 
 
@@ -428,11 +493,11 @@
                         if (typeof table !== 'undefined') {
                             table.ajax.reload();  // Refresh table
                         }
-                        $('#selectAll').prop('checked', false);
+                        $('#employeeSelectAll').prop('checked', false);
                         $('#employeesTable tbody .row-select').prop('checked', false);
                         selectedIds = [];  // Clear selection
                         $('#employee-multiDeleteBtn').hide();
-                        $('#selectedCount').text('0');
+                        $('#employeeSelectedCount').text('0');
                     },
                     error: function(xhr) {
                         console.log('ERROR:', xhr.status, xhr.responseText);
@@ -446,6 +511,120 @@
             }
         });
         });
+
+        function loadAreas() {
+            let $select = $('#area_id');
+
+            // ✅ Destroy Select2 first
+            if ($select.hasClass('select2-hidden-accessible')) {
+                $select.select2('destroy');
+            }
+
+            $select.empty().append('<option value="">-- Select Area --</option>');
+
+            let promise = $.ajax({
+                url: '{{ route("areas.data") }}',
+                method: 'GET'
+            });
+
+            promise.done(function(response) {
+                console.log('Areas:', response.data);
+                $.each(response.data, function(index, area) {
+                    $select.append(`<option value="${area.id}">${area.name}</option>`);
+                });
+
+                // ✅ Initialize Select2 AFTER modal is open
+                $select.select2({
+                    placeholder: '-- Select Area --',
+                    width: '100%',
+                    dropdownParent: $('#employeeModal'),
+                    allowClear: true
+                });
+            });
+
+            promise.fail(function(xhr) {
+                console.error('Areas load failed:', xhr);
+            });
+
+            return promise;
+        }
+
+        function loadDepartments() {
+            let $select = $('#department_id');  // ✅ FIXED: Correct selector
+
+            // ✅ Destroy Select2 first
+            if ($select.hasClass('select2-hidden-accessible')) {
+                $select.select2('destroy');
+            }
+
+            $select.empty().append('<option value="">-- Select Department --</option>');
+
+            let promise = $.ajax({
+                url: '{{ route("departments.data") }}',
+                method: 'GET'
+            });
+
+            promise.done(function(response) {
+                console.log('Departments:', response.data);
+                $.each(response.data, function(index, department) {  // ✅ FIXED: 'department'
+                    $select.append(`<option value="${department.id}">${department.name}</option>`);
+                });
+
+                // ✅ Initialize Select2
+                $select.select2({
+                    placeholder: '-- Select Department --',
+                    width: '100%',
+                    dropdownParent: $('#employeeModal'),
+                    allowClear: true
+                });
+            });
+
+            promise.fail(function(xhr) {
+                console.error('Departments load failed:', xhr);
+            });
+
+            return promise;
+        }
+
+        function loadPositions() {
+            let $select = $('#position_id');  // ✅ Correct selector
+
+            // ✅ Destroy Select2 first
+            if ($select.hasClass('select2-hidden-accessible')) {
+                $select.select2('destroy');
+            }
+
+            // ✅ Change input to select in HTML first!
+            $select.empty().append('<option value="">-- Select Position --</option>');
+
+            let promise = $.ajax({
+                url: '{{ route("positions.data") }}',
+                method: 'GET'
+            });
+
+            promise.done(function(response) {
+                console.log('Positions:', response.data);
+                $.each(response.data, function(index, position) {
+                    $select.append(`<option value="${position.id}">${position.name}</option>`);
+                });
+
+                // ✅ Initialize Select2
+                $select.select2({
+                    placeholder: '-- Select Position --',
+                    width: '100%',
+                    dropdownParent: $('#employeeModal'),
+                    allowClear: true
+                });
+            });
+
+            promise.fail(function(xhr) {
+                console.error('Positions load failed:', xhr);
+            });
+
+            return promise;
+        }
+
+
     }); // ✅ ONE closing brace
 </script>
 

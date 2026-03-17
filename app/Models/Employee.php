@@ -11,6 +11,7 @@ class Employee extends Model
     use HasFactory;
 
     protected $fillable = [
+        'id',
         'employee_id',
         'bio_number',
         'name',
@@ -28,25 +29,20 @@ class Employee extends Model
     /**
      * Get the position that belongs to the employee.
      */
-    public function position(): BelongsTo
+    // ✅ ADD THESE RELATIONSHIPS:
+    public function area()
+    {
+        return $this->belongsTo(Area::class);
+    }
+
+    public function position()
     {
         return $this->belongsTo(Position::class);
     }
 
-    /**
-     * Get the department that belongs to the employee.
-     */
-    public function department(): BelongsTo
+    public function department()
     {
         return $this->belongsTo(Department::class);
-    }
-
-    /**
-     * Get the area that belongs to the employee.
-     */
-    public function area(): BelongsTo
-    {
-        return $this->belongsTo(Area::class);
     }
 
     public function setPasswordAttribute($value): void
@@ -60,27 +56,4 @@ class Employee extends Model
         return $this->password === $password;
     }
 
-    /**
-     * Get position name attribute (for backward compatibility)
-     */
-    public function getPositionAttribute(): ?string
-    {
-        return $this->position?->name;
-    }
-
-    /**
-     * Get department name attribute (for backward compatibility)
-     */
-    public function getDepartmentAttribute(): ?string
-    {
-        return $this->department?->name;
-    }
-
-    /**
-     * Get area name attribute (for backward compatibility)
-     */
-    public function getAreaAttribute(): ?string
-    {
-        return $this->area?->name;
-    }
 }

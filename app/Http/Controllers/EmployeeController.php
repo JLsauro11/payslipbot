@@ -17,23 +17,34 @@ class EmployeeController extends Controller
 
     public function data()
     {
-        $employees = Employee::with(['position', 'department', 'area'])
-            ->select('id', 'employee_id', 'bio_number', 'name', 'password', 'position_id', 'department_id', 'area_id', 'status')
-            ->get();
+        $employees = Employee::with(['area', 'position', 'department'])->get()->map(function ($employee) {
+            return [
+                'id' => $employee->id,
+                'employee_id' => $employee->employee_id,
+                'bio_number' => $employee->bio_number,
+                'area' => $employee->area?->name ?? '-',
+            'name' => $employee->name,
+            'password' => $employee->password,
+            'position' => $employee->position?->name ?? '-',
+            'department' => $employee->department?->name ?? '-',
+            'status' => $employee->status
+        ];
+    });
 
-        return response()->json([
-            'data' => $employees
-        ]);
+        return response()->json(['data' => $employees]);
     }
 
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'employee_number' => 'required|unique:employees,employee_id|max:20',
+            'employee_number' => 'required|unique:employees,employee_id|max:20',  // ✅ FIXED
+            'bio_number' => 'required|string|max:20|unique:employees,bio_number',
+            'area_id' => 'required|exists:areas,id',
             'name' => 'required|string|max:255',
-            'position' => 'nullable|string|max:100',
-            'department' => 'nullable|string|max:100',
-            'status' => 'required|in:Active,Inactive'
+            'position_id' => 'required|exists:positions,id',
+            'department_id' => 'required|exists:departments,id',  // ✅ departments, not areas
+            'status' => 'required|in:Active,Inactive',
+            'password' => 'nullable|string|max:20'
         ]);
 
         if ($validator->fails()) {
@@ -44,16 +55,16 @@ class EmployeeController extends Controller
             ], 422);
         }
 
-        // ✅ Auto-generate RS8-XXXX password (4 random digits)
-        $password = 'RS8-' . str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
-
+        $password = $request->password ?: 'RS8-' . str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
 
         Employee::create([
-            'employee_id' => $request->employee_number,
+            'employee_id' => $request->employee_number,      // ✅ Form → DB mapping
+            'bio_number' => $request->bio_number,
+            'area_id' => $request->area_id,
             'name' => $request->name,
+            'position_id' => $request->position_id,
+            'department_id' => $request->department_id,
             'password' => $password,
-            'position' => $request->position,
-            'department' => $request->department,
             'status' => $request->status
         ]);
 
@@ -63,6 +74,7 @@ class EmployeeController extends Controller
             'message' => "Employee added successfully!"
         ]);
     }
+
 
     public function show(Employee $employee)
     {

@@ -337,73 +337,81 @@
 
 {{-- Employee Modal --}}
 <div class="modal fade" id="employeeModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="employeeModalTitle"></h5>
+                <h5 class="modal-title" id="employeeModalTitle">Add Employee</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-                <form id="employeeForm">
+            <form id="employeeForm">
                 @csrf
-                <!-- ✅ FIX: Proper hidden ID field -->
-                    <input type="hidden" id="id" name="id" value="">
+                <input type="hidden" id="id" name="id" value="">
 
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">Employee Number</label>
-                            <input type="text" class="form-control" name="employee_number" id="employee_number" required>
+                <div class="modal-body">
+                    <div class="row">
+                        <!-- LEFT COLUMN -->
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Employee Number <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" name="employee_number" id="employee_number" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">BIO Number <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" name="bio_number" id="bio_number" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Area <span class="text-danger">*</span></label>
+                                <select class="form-control" name="area_id" id="area_id" required>
+                                    <option value="">-- Select Area --</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Position <span class="text-danger">*</span></label>
+                                <select class="form-control" name="position_id" id="position_id" required>
+                                    <option value="">-- Select Position --</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">BIO Number</label>
-                            <input type="text" class="form-control" name="bio_number" id="bio_number" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Area<span class="text-danger">*</span></label>
-                            <select class="form-control" name="area_id" id="area_id" required>
-                                <option value="">-- Select Area --</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Employee Name</label>
-                            <input type="text" class="form-control" name="name" id="name" required>
-                        </div>
-                        <div class="mb-3 password-field" style="display: none;">
-                            <label class="form-label">Payslip Password</label>
-                            <input type="text" class="form-control" name="password" id="password" placeholder="RS8-1234">
-                            <div class="form-text">Leave blank to keep current password (RS8-XXXX auto-generated on create)</div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Position<span class="text-danger">*</span></label>
-                            <select class="form-control" name="position_id" id="position_id" required>
-                                <option value="">-- Select Position --</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Department<span class="text-danger">*</span></label>
-                            <select class="form-control" name="department_id" id="department_id" required>
-                                <option value="">-- Select Department --</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Status</label>
-                            <select class="form-control" name="status" id="status">
-                                <option value="Active">Active</option>
-                                <option value="Inactive">Inactive</option>
-                            </select>
+
+                        <!-- RIGHT COLUMN -->
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Employee Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" name="name" id="name" required>
+                            </div>
+                            <div class="mb-3 password-field" style="display: none;">
+                                <label class="form-label">Payslip Password</label>
+                                <input type="text" class="form-control" name="password" id="password" placeholder="RS8-1234">
+                                <div class="form-text">Leave blank to keep current password</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Department <span class="text-danger">*</span></label>
+                                <select class="form-control" name="department_id" id="department_id" required>
+                                    <option value="">-- Select Department --</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Status</label>
+                                <select class="form-control" name="status" id="status">
+                                    <option value="Active">Active</option>
+                                    <option value="Inactive">Inactive</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary" id="employeeSubmitBtn">
-                            <span class="spinner-border spinner-border-sm me-1 d-none" id="employeeSpinner"></span>
-                            Save
-                        </button>
-                    </div>
-                </form>
-
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="employeeSubmitBtn">
+                        <span class="spinner-border spinner-border-sm me-1 d-none" id="employeeSpinner"></span>
+                        Save
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
+
 
 {{-- Payslip Modal --}}
 <div class="modal fade" id="payslipModal" tabindex="-1">

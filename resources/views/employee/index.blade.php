@@ -18,6 +18,10 @@
             right: 5px;
             width: 20px;
         }
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            color: #444;
+            line-height: 20px;
+        }
         .fixed-bottom-multi-delete {
             position: fixed;
             bottom: 20px;
@@ -272,17 +276,13 @@
             $('.password-field').hide();
             $('#employeeModalTitle').text('Add Employee');
 
-            // ✅ 1. Open modal FIRST
             $('#employeeModal').modal('show');
-
-            // ✅ 2. THEN load dropdowns
-            Promise.all([
-                loadAreas(),
-                loadDepartments(),
-                loadPositions()
-            ]);
+            loadAreas();      // ✅ Will initialize Select2
+            loadDepartments(); // ✅ Will initialize Select2
+            loadPositions();  // ✅ Will initialize Select2
         };
-        
+
+
         $(document).on('click', '.edit-btn', function() {
             let id = $(this).data('id');
             let url = `{{ route('employees.show', ':id') }}`.replace(':id', id);
@@ -308,25 +308,11 @@
 
                     $('#employeeModalTitle').text('Edit Employee');
 
-                    // ✅ 1. Open modal FIRST
                     $('#employeeModal').modal('show');
 
-                    // ✅ Load both dropdowns in parallel
-                    Promise.all([
-                        loadAreas(),
-                        loadDepartments(),
-                        loadPositions()  // ✅ Add this
-                    ]).then(function() {
-                        if (employee.area_id) {
-                            $('#area_id').val(employee.area_id).trigger('change');
-                        }
-                        if (employee.department_id) {
-                            $('#department_id').val(employee.department_id).trigger('change');
-                        }
-                        if (employee.position_id) {
-                            $('#position_id').val(employee.position_id).trigger('change');
-                        }
-                    });
+                    loadAreas();
+                    loadDepartments();
+                    loadPositions();
                 },
                 error: function() {
                     Swal.fire('Error!', 'Employee not found', 'error');
@@ -515,117 +501,88 @@
         function loadAreas() {
             let $select = $('#area_id');
 
-            // ✅ Destroy Select2 first
+            // ✅ Destroy if exists
             if ($select.hasClass('select2-hidden-accessible')) {
                 $select.select2('destroy');
             }
 
-            $select.empty().append('<option value="">-- Select Area --</option>');
+            $select.empty().append('<option value="">Select Area</option>');
 
-            let promise = $.ajax({
+            return $.ajax({
                 url: '{{ route("areas.data") }}',
-                method: 'GET'
+                method: 'GET',
+                success: function(response) {
+                    $.each(response.data, function(index, area) {
+                        $select.append(`<option value="${area.id}">${area.name}</option>`);
+                    });
+
+                    // ✅ Initialize Select2 AFTER data loads
+                    $select.select2({
+                        placeholder: '-- Select Area --',
+                        width: '100%',
+                        dropdownParent: $('#employeeModal .modal-body')
+                    });
+                }
             });
-
-            promise.done(function(response) {
-                console.log('Areas:', response.data);
-                $.each(response.data, function(index, area) {
-                    $select.append(`<option value="${area.id}">${area.name}</option>`);
-                });
-
-                // ✅ Initialize Select2 AFTER modal is open
-                $select.select2({
-                    placeholder: '-- Select Area --',
-                    width: '100%',
-                    dropdownParent: $('#employeeModal'),
-                    allowClear: true
-                });
-            });
-
-            promise.fail(function(xhr) {
-                console.error('Areas load failed:', xhr);
-            });
-
-            return promise;
         }
 
         function loadDepartments() {
-            let $select = $('#department_id');  // ✅ FIXED: Correct selector
+            let $select = $('#department_id');
 
-            // ✅ Destroy Select2 first
+            // ✅ Destroy if exists
             if ($select.hasClass('select2-hidden-accessible')) {
                 $select.select2('destroy');
             }
 
-            $select.empty().append('<option value="">-- Select Department --</option>');
+            $select.empty().append('<option value="">Select Department</option>');
 
-            let promise = $.ajax({
+            return $.ajax({
                 url: '{{ route("departments.data") }}',
-                method: 'GET'
+                method: 'GET',
+                success: function(response) {
+                    $.each(response.data, function(index, department) {
+                        $select.append(`<option value="${department.id}">${department.name}</option>`);
+                    });
+
+                    // ✅ Initialize Select2 AFTER data loads
+                    $select.select2({
+                        placeholder: '-- Select Department --',
+                        width: '100%',
+                        dropdownParent: $('#employeeModal .modal-body')
+                    });
+                }
             });
-
-            promise.done(function(response) {
-                console.log('Departments:', response.data);
-                $.each(response.data, function(index, department) {  // ✅ FIXED: 'department'
-                    $select.append(`<option value="${department.id}">${department.name}</option>`);
-                });
-
-                // ✅ Initialize Select2
-                $select.select2({
-                    placeholder: '-- Select Department --',
-                    width: '100%',
-                    dropdownParent: $('#employeeModal'),
-                    allowClear: true
-                });
-            });
-
-            promise.fail(function(xhr) {
-                console.error('Departments load failed:', xhr);
-            });
-
-            return promise;
         }
 
         function loadPositions() {
-            let $select = $('#position_id');  // ✅ Correct selector
+            let $select = $('#position_id');
 
-            // ✅ Destroy Select2 first
+            // ✅ Destroy if exists
             if ($select.hasClass('select2-hidden-accessible')) {
                 $select.select2('destroy');
             }
 
-            // ✅ Change input to select in HTML first!
-            $select.empty().append('<option value="">-- Select Position --</option>');
+            $select.empty().append('<option value="">Select Position</option>');
 
-            let promise = $.ajax({
+            return $.ajax({
                 url: '{{ route("positions.data") }}',
-                method: 'GET'
+                method: 'GET',
+                success: function(response) {
+                    $.each(response.data, function(index, position) {
+                        $select.append(`<option value="${position.id}">${position.name}</option>`);
+                    });
+
+                    // ✅ Initialize Select2 AFTER data loads
+                    $select.select2({
+                        placeholder: '-- Select Position --',
+                        width: '100%',
+                        dropdownParent: $('#employeeModal .modal-body')
+                    });
+                }
             });
-
-            promise.done(function(response) {
-                console.log('Positions:', response.data);
-                $.each(response.data, function(index, position) {
-                    $select.append(`<option value="${position.id}">${position.name}</option>`);
-                });
-
-                // ✅ Initialize Select2
-                $select.select2({
-                    placeholder: '-- Select Position --',
-                    width: '100%',
-                    dropdownParent: $('#employeeModal'),
-                    allowClear: true
-                });
-            });
-
-            promise.fail(function(xhr) {
-                console.error('Positions load failed:', xhr);
-            });
-
-            return promise;
         }
 
-
-    }); // ✅ ONE closing brace
+    });
 </script>
 
 

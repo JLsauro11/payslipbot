@@ -63,6 +63,7 @@ Route::controller(HomeController::class)->middleware('auth')->group(function() {
 Route::controller(EmployeeController::class)->middleware('auth')->group(function() {
     Route::get('employees', 'index')->name('employees.index');
     Route::get('employees/data', 'data')->name('employees.data');
+    Route::get('employees/payslip-data', 'employeesForPayslip')->name('employees.payslip-data');
     Route::post('employees', 'store')->name('employees.store');
     Route::get('employees/{employee}', 'show')->name('employees.show');
     Route::put('employees/{employee}',  'update')->name('employees.update');

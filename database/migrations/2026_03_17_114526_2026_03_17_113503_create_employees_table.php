@@ -14,8 +14,10 @@ return new class extends Migration
         Schema::create('employees', function (Blueprint $table) {
             $table->id();
             $table->string('employee_id')->unique();
-            $table->string('bio_number')->unique()->nullable();
-            $table->string('name');
+            $table->string('bio_number')->nullable();
+            $table->string('first_name');
+            $table->string('last_name');
+            $table->string('middle_initial');
             $table->foreignId('position_id')->nullable()->constrained()->cascadeOnDelete();
             $table->foreignId('department_id')->nullable()->constrained()->cascadeOnDelete();
             $table->foreignId('area_id')->nullable()->constrained()->cascadeOnDelete();

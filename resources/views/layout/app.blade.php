@@ -375,10 +375,33 @@
 
                         <!-- RIGHT COLUMN -->
                         <div class="col-md-6">
+                            <!-- Replace the Employee Name field in RIGHT COLUMN -->
                             <div class="mb-3">
                                 <label class="form-label">Employee Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" name="name" id="name" required>
+                                <div class="row g-2">
+                                    <div class="col-4">
+                                        <input type="text" class="form-control" name="first_name" id="first_name"
+                                               placeholder="First Name" required>
+                                    </div>
+                                    <div class="col-5">
+                                        <input type="text" class="form-control" name="last_name" id="last_name"
+                                               placeholder="Last Name" required>
+                                    </div>
+                                    <div class="col-3">
+                                        <input type="text" class="form-control" name="middle_initial" id="middle_initial"
+                                               placeholder="M.I." maxlength="10">
+                                    </div>
+                                </div>
                             </div>
+
+                            <!-- Add suffix field -->
+                            <div class="mb-3">
+                                <label class="form-label">Name Suffix</label>
+                                <input type="text" class="form-control" name="suffix" id="suffix"
+                                       placeholder="e.g. Jr., III, PhD" maxlength="20">
+                            </div>
+
+
                             <div class="mb-3 password-field" style="display: none;">
                                 <label class="form-label">Payslip Password</label>
                                 <input type="text" class="form-control" name="password" id="password" placeholder="RS8-1234">
@@ -412,7 +435,6 @@
     </div>
 </div>
 
-
 {{-- Payslip Modal --}}
 <div class="modal fade" id="payslipModal" tabindex="-1">
     <div class="modal-dialog">
@@ -428,10 +450,14 @@
                 <div class="modal-body">
                     {{-- 1. Employee Selection --}}
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Employee</label>
+                        <label class="form-label fw-bold">Employee <span class="text-danger">*</span></label>
                         <select class="form-control" id="payslip_employee_id" name="employee_id" required>
-                            <option value=""></option>
+                            <option value="">Select Employee</option>
                         </select>
+                        <div class="form-text">
+                            Bio number AND area must match uploaded file<br>
+                            <small class="text-muted">Format: SANTIAGO EMP151</small>
+                        </div>
                     </div>
 
                     {{-- 2. Payslip File Upload --}}
@@ -442,18 +468,22 @@
                                id="payslip_file"
                                name="payslip_file"
                                accept=".pdf">
-                        <div class="form-text">Upload PDF only (Max 2MB)</div>
+                        <div class="form-text">
+                            Expected format: BUSINESS_UNIT^YYYYMMDD_YYYYMMDD_EMPCODE^NAME.pdf
+                        </div>
                     </div>
 
-                    {{-- 3. Payslip Date --}}
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Payslip Date <span class="text-danger">*</span></label>
-                        <input type="text"
-                                class="form-control"
-                               id="payslipDate"
-                               name="payslip_date"
-                               placeholder="Pick payslip date "
-                               required>
+                    {{-- 3. SINGLE Preview Section (Fixed duplicate) --}}
+                    <div class="mb-3" id="filenamePreview" style="display: none;">
+                        <label class="form-label fw-bold">Detected from Filename:</label>
+                        <div class="alert alert-info" id="detectedDate"></div>
+
+                        <div class="mt-2 p-2 bg-light border rounded" id="employeeMatchInfo" style="display: none;">
+                            <small class="text-success">
+                                <strong>✅ Selected:</strong> <span id="selectedBioArea"></span><br>
+                                <strong>📄 File:</strong> <span id="fileBioArea"></span>
+                            </small>
+                        </div>
                     </div>
                 </div>
 
@@ -506,34 +536,50 @@
 </div>
 
 
-<!-- Multi Upload Modal -->
-<div class="modal fade" id="multiUploadModal" tabindex="-1" aria-labelledby="multiUploadModalLabel" aria-hidden="true">
+<!-- Multi File Upload Modal (Auto-detect from filename) -->
+<div class="modal fade" id="multiUploadModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="multiUploadTitle">Upload Multiple Payslips</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
-                <form id="multiUploadForm" enctype="multipart/form-data">
+            <form id="multiUploadForm" enctype="multipart/form-data">
+                @csrf
+                <div class="modal-body">
+                    {{-- Multi-File Upload --}}
                     <div class="mb-3">
-                        <label class="form-label">Select Multiple PDF Files <small class="text-muted">(Naming: EMPLOYEEID_MM_DD_YYYY.pdf)</small></label>
-                        <input type="file" class="form-control" id="multi_payslip_files" name="payslip_files[]" multiple accept=".pdf" required>
-                        <div class="form-text">Example: 2025050_01_15_2026.pdf</div>
+                        <label class="form-label fw-bold">Payslip Files <span class="text-danger">*</span></label>
+                        <input type="file"
+                               class="form-control"
+                               id="multi_payslip_files"
+                               name="payslip_files[]"
+                               multiple
+                               accept=".pdf">
+                        <div class="form-text">
+                            Expected format: BUSINESS_UNIT^YYYYMMDD_YYYYMMDD_EMPXXX^NAME.pdf<br>
+                            <span class="text-warning">⚠️ Maximum 100 files per upload</span><br>
+                            <small class="text-muted">Select multiple files at once (PDF only)</small>
+                        </div>
                     </div>
-                    <div id="multiPreview" class="mb-3"></div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" form="multiUploadForm" class="btn btn-primary" id="multiSubmitBtn">
-                    <span class="spinner-border spinner-border-sm d-none me-1" id="multiSpinner" role="status"></span>
-                    Upload Payslips
-                </button>
-            </div>
+
+                    {{-- Multi-File Preview --}}
+                    <div id="multiPreview" class="mb-3" style="display: none; max-height: 300px; overflow-y: auto;"></div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="multiSubmitBtn">
+                        <span class="spinner-border spinner-border-sm me-1 d-none" id="multiSpinner"></span>
+                        Upload Payslips
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
+
+
 
 <!-- Account Settings Modal - FIXED -->
 <div class="modal fade" id="accountSettingsModal" tabindex="-1">

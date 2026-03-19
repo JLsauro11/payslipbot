@@ -208,9 +208,6 @@
         }, 500);
         });
 
-
-
-
         // Clear Filters button
         $('#cancelFilterBtn').on('click', function() {
             currentFilters = { start_date: '', end_date: '' };
@@ -293,27 +290,27 @@
             }
         });
 
-        // ✅ FIXED with your required empty option
+        // Load employees with area
         function loadPayslipEmployees() {
             let $select = $('#payslip_employee_id');
-            $select.empty().append('<option value="">Select Employee</option>');  // Your requirement ✅
+            $select.empty().append('<option value="">Select Employee</option>');
 
             return $.ajax({
-                url: '{{ route("employees.data") }}',
+                url: '{{ route("employees.payslip-data") }}',
                 method: 'GET',
                 success: function(response) {
                     $.each(response.data, function(index, employee) {
                         $select.append(`
-                    <option value="${employee.employee_id}">
-                        ${employee.employee_id} - ${employee.name}
+                    <option value="${employee.employee_id}"
+                            data-bio="${employee.bio_number}"
+                            data-area="${employee.area_name}">
+                        ${employee.employee_id} - ${employee.name} (${employee.area_name})
                     </option>
                 `);
                     });
-                    $select.trigger('change');
                 }
             });
         }
-
 
 // Close dropdown when modal opens (minimal intervention)
         $('#payslipModal').on('show.bs.modal', function() {
@@ -332,17 +329,37 @@
             setTimeout(function() {
                 $('.filter-dropdown [data-bs-toggle="dropdown"]').trigger('click').trigger('click');
             }, 100);
+            resetPayslipModal();
         });
 
-        window.openAddModal = function() {
+        // ✅ Handle Cancel/X/Backdrop clicks
+        $(document).on('click', '[data-bs-dismiss="modal"], .modal-backdrop', function() {
+            setTimeout(() => {
+                resetPayslipModal(); // ✅ Safe cleanup after animation
+        }, 100);
+        });
+
+        // ✅ Full reset function
+        function resetPayslipModal() {
             $('#payslipForm')[0].reset();
             $('#payslip_id').val('');
-            $('#modalTitle').text('Upload Payslip');
+            $('#filenamePreview').hide();
+            $('#employeeMatchInfo').hide();
+            $('#detectedDate').empty();
+            window.fileBio = null;
+            window.fileArea = null;
+            isProcessingFile = false;
+        }
+
+        // ✅ Update openAddModal
+        window.openAddModal = function() {
+            resetPayslipModal();
+            $('#payslipModalTitle').text('Upload Payslip');
             loadPayslipEmployees();
             $('#payslipModal').modal('show');
         };
 
-        // Edit remains the same - works perfectly
+        // ✅ Update edit function
         $(document).on('click', '.edit-btn', function() {
             let id = $(this).data('id');
             let url = `{{ route('payslips.show', ':id') }}`.replace(':id', id);
@@ -351,15 +368,14 @@
                 url: url,
                 method: 'GET',
                 success: function(payslip) {
-                    $('#payslipForm')[0].reset();
+                    resetPayslipModal();
                     $('#payslip_id').val(payslip.id);
-                    $('#startDate').val(payslip.payslip_date);
 
                     loadPayslipEmployees().done(function() {
                         $('#payslip_employee_id').val(payslip.employee_id).trigger('change');
                     });
 
-                    $('#modalTitle').text('Edit Payslip');
+                    $('#payslipModalTitle').text('Edit Payslip');
                     $('#payslipModal').modal('show');
                 },
                 error: function() {
@@ -367,6 +383,7 @@
                 }
             });
         });
+
 
 
         $('#payslipForm').on('submit', function(e) {
@@ -377,10 +394,11 @@
 
             let formData = new FormData(this);
             if (payslipId) {
-                formData.append('_method', 'PUT');  // Method spoofing
+                formData.append('_method', 'PUT');
             }
-            let $btn = $('#submitBtn');
-            let $spinner = $('#spinner');
+
+            let $btn = $('#payslipSubmitBtn');
+            let $spinner = $('#payslipSpinner');
 
             $btn.prop('disabled', true);
             $spinner.removeClass('d-none');
@@ -396,18 +414,16 @@
                     'Accept': 'application/json'
                 },
                 success: function(response) {
-                    if (response.status) {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Success!',
-                            text: response.message,
-                            timer: 1500
-                        });
-                        $('#payslipModal').modal('hide');
-                        table.ajax.reload();
-                        $('#payslipForm')[0].reset();
-                        $('#payslip_id').val(''); // Clear hidden ID
-                    }
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Success!',
+                        text: response.message,
+                        showConfirmButton: false,
+                        timer: 2000
+                    });
+                    resetPayslipModal(); // ✅ Full reset
+                    table.ajax.reload();
+                    $('#payslipModal').modal('hide');
                 },
                 error: function(xhr) {
                     let response = xhr.responseJSON;
@@ -425,80 +441,242 @@
             });
         });
 
+        // ✅ Updated file change handler - Extract & show name
+        $('#payslip_file').off('change').on('change', function() {
+            if (isProcessingFile) return;
+            isProcessingFile = true;
 
-        // Multi Upload Modal
-        window.openMultiUploadModal = function() {
+            const file = this.files[0];
+            if (!file) {
+                isProcessingFile = false;
+                return;
+            }
+
+            $('#filenamePreview').hide();
+            $('#employeeMatchInfo').hide();
+            window.fileBio = null;
+            window.fileArea = null;
+
+            const filename = file.name.replace('.pdf', '');
+
+            // Space check (unchanged)...
+            const spaceIndex = filename.indexOf('EMP ');
+            if (spaceIndex !== -1 && /\d/.test(filename[spaceIndex + 4])) {
+                const empNum = filename.match(/EMP\s+(\d+)/)?.[1] || 'XXX';
+                $('#detectedDate').html(`
+            <div class="alert alert-warning p-2 mb-0">
+                <i class="fas fa-exclamation-triangle me-1"></i>
+                <strong>Invalid Filename!</strong><br>
+                'EMP${empNum}' contains space. Use 'EMP${empNum}' (no space).
+            </div>
+        `);
+                $('#filenamePreview').show();
+                this.value = '';
+                isProcessingFile = false;
+                return;
+            }
+
+            // ✅ Updated regex with name extraction
+            const fullMatch = filename.match(/(.+?)[_^](\d{8})_(\d{8})_EMP(\d+)(.*)/i);
+            if (!fullMatch) {
+                $('#detectedDate').html(`
+            <div class="alert alert-danger p-2 mb-0">
+                <i class="fas fa-times me-1"></i>
+                <strong>Invalid Format!</strong><br>
+                Expected: AREA^YYYYMMDD_YYYYMMDD_EMPXXX^NAME.pdf
+            </div>
+        `);
+                $('#filenamePreview').show();
+                this.value = '';
+                isProcessingFile = false;
+                return;
+            }
+
+            const [, areaFromFile, startDateStr, endDateStr, empBio, namePart] = fullMatch;
+            const fileNameFromFile = namePart.trim().replace(/^[_^]/, '');
+
+            const endDate = new Date(
+                parseInt(endDateStr.substring(0,4)),
+                parseInt(endDateStr.substring(4,6)) - 1,
+                parseInt(endDateStr.substring(6,8))
+            );
+
+            const endDay = endDate.getDate();
+            const daysInMonth = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate();
+            const payslipDay = endDay <= 15 ? 15 : daysInMonth;
+            const payslipDate = `${String(endDate.getMonth() + 1).padStart(2, '0')}/${payslipDay}/${endDate.getFullYear()}`;
+
+            $('#detectedDate').html(`
+        <strong>📅 Payslip Date:</strong> ${payslipDate}<br>
+        <strong>👤 Bio Number:</strong> EMP${empBio}<br>
+        <strong>🏢 Area:</strong> ${areaFromFile}<br>
+        <strong>👤 Name:</strong> ${fileNameFromFile || 'Not detected'}<br>
+        <strong>📄 Period:</strong> ${startDateStr.substring(4,8)} - ${endDateStr.substring(4,8)}
+    `);
+
+            $('#filenamePreview').show();
+            window.fileBio = empBio;
+            window.fileArea = areaFromFile;
+            window.fileName = fileNameFromFile; // ✅ Store name
+            checkEmployeeMatch();
+
+            isProcessingFile = false;
+        });
+
+
+
+// Check employee-file match when employee changes
+        $('#payslip_employee_id').on('change', function() {
+            checkEmployeeMatch();
+        });
+
+        // ✅ Updated match check - Include name
+        function checkEmployeeMatch() {
+            let $selected = $('#payslip_employee_id option:selected');
+            let selectedBio = $selected.data('bio');
+            let selectedArea = $selected.data('area');
+            let selectedName = $selected.text().split(' - ')[1]?.split(' (')[0] || '';
+
+            if (window.fileBio && window.fileArea && selectedBio && selectedArea) {
+                let fileBioFull = 'EMP' + window.fileBio;
+                let bioMatch = (selectedBio == fileBioFull || selectedBio == window.fileBio);
+                let areaMatch = selectedArea.toUpperCase().trim() === window.fileArea.toUpperCase().trim();
+                let nameMatch = !window.fileName || selectedName.toUpperCase().includes(window.fileName.toUpperCase().split(',')[0]);
+
+                if (bioMatch && areaMatch && nameMatch) {
+                    $('#selectedBioArea').html(`✅ <strong>${$selected.text()}</strong>`);
+                    $('#fileBioArea').html(`Bio: EMP${window.fileBio}, Area: ${window.fileArea}${window.fileName ? ', Name: ' + window.fileName : ''}`);
+                    $('#employeeMatchInfo').removeClass('bg-danger').addClass('bg-success').show();
+                } else {
+                    $('#employeeMatchInfo').removeClass('bg-success').addClass('bg-danger').show();
+                    $('#selectedBioArea').html(`❌ MISMATCH<br><small>${$selected.text()}</small>`);
+                    $('#fileBioArea').html(`Bio: EMP${window.fileBio}, Area: ${window.fileArea}${window.fileName ? ', Name: ' + window.fileName : ''}`);
+                }
+            }
+        }
+
+// ✅ Multi modal reset
+        function resetMultiModal() {
             $('#multiUploadForm')[0].reset();
-            $('#multiPreview').empty();
+            $('#multiPreview').hide().empty();
+        }
+
+        window.openMultiUploadModal = function() {
+            resetMultiModal();
+            $('#multiUploadTitle').text('Upload Multiple Payslips');
             $('#multiUploadModal').modal('show');
         };
 
-// Multi-file preview and validation
-        $('#multi_payslip_files').on('change', function() {
-            let files = this.files;
-            let preview = $('#multiPreview');
-            preview.empty();
+        let multiIsProcessingFile = false;
+
+
+// ✅ Multi-file validation + preview with 100-file limit
+        $('#multi_payslip_files').off('change').on('change', function() {
+            if (multiIsProcessingFile) return;
+            multiIsProcessingFile = true;
+
+            const files = Array.from(this.files);
+            const preview = $('#multiPreview');
+            preview.empty().hide();
+
+            // ✅ NEW: Check 100-file limit
+            if (files.length > 100) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'File Limit Exceeded!',
+                    text: `Maximum 100 files allowed. You selected ${files.length} files.`,
+                    confirmButtonText: 'OK'
+                });
+                this.value = ''; // Clear selection
+                multiIsProcessingFile = false;
+                return;
+            }
+
+            if (files.length === 0) {
+                multiIsProcessingFile = false;
+                return;
+            }
 
             let validFiles = [];
             let errors = [];
 
-            Array.from(files).forEach((file, index) => {
-                let filename = file.name.replace('.pdf', '');
-            let parts = filename.split('_');
+            files.forEach((file, index) => {
+                const filename = file.name.replace('.pdf', '');
 
-            if (parts.length !== 4) {
-                errors.push(`${file.name}: Invalid format. Use: EMPLOYEEID_MM_DD_YYYY.pdf`);
+            // ✅ Space check
+            const spaceIndex = filename.indexOf('EMP ');
+            if (spaceIndex !== -1 && /\d/.test(filename[spaceIndex + 4])) {
+                const empNum = filename.match(/EMP\s+(\d+)/)?.[1] || 'XXX';
+                errors.push(`❌ ${file.name}: 'EMP${empNum}' contains space`);
                 return;
             }
 
-            let [employeeId, month, day, year] = parts;
-            let dateStr = `${month.padStart(2,'0')}/${day.padStart(2,'0')}/${year}`;
-
-            // Basic date validation
-            let date = new Date(year, month-1, day);
-            if (date.getFullYear() != year || date.getMonth() + 1 != month || date.getDate() != day) {
-                errors.push(`${file.name}: Invalid date`);
+            // ✅ Format check
+            const dateEmpMatch = filename.match(/(\d{8})_(\d{8})_EMP(\d+)/);
+            if (!dateEmpMatch) {
+                errors.push(`❌ ${file.name}: Invalid format. Expected BUSINESS_UNIT^YYYYMMDD_YYYYMMDD_EMPXXX^NAME.pdf`);
                 return;
             }
 
-            // Check if 15th or last day of month
-            let daysInMonth = new Date(year, month, 0).getDate();
-            if (day != 15 && day != daysInMonth) {
-                errors.push(`${file.name}: Must be 15th or last day of month`);
-                return;
-            }
+            const [, startDateStr, endDateStr, empBio] = dateEmpMatch;
+            const areaFromFile = filename.split('^')[0] || 'Unknown';
+
+            const endDate = new Date(
+                parseInt(endDateStr.substring(0,4)),
+                parseInt(endDateStr.substring(4,6)) - 1,
+                parseInt(endDateStr.substring(6,8))
+            );
+
+            const endDay = endDate.getDate();
+            const daysInMonth = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate();
+            const payslipDay = endDay <= 15 ? 15 : daysInMonth;
+            const payslipDate = `${String(endDate.getMonth() + 1).padStart(2, '0')}/${payslipDay}/${endDate.getFullYear()}`;
 
             validFiles.push({
-                file: file,
-                employeeId: employeeId,
-                date: dateStr
+                file: file.name,
+                area: areaFromFile,
+                bio: `EMP${empBio}`,
+                date: payslipDate,
+                period: `${startDateStr.substring(4,8)} - ${endDateStr.substring(4,8)}`
             });
         });
 
-            // Show preview
+            // ✅ Enhanced preview with file count
+            let previewHtml = `<div class="alert alert-info">
+        📊 <strong>${files.length} files selected</strong> (Max: 100)
+    </div>`;
+
             if (validFiles.length > 0) {
-                let previewHtml = `<div class="alert alert-success">✅ ${validFiles.length} valid file(s) ready:</div>`;
+                previewHtml += `<div class="alert alert-success mb-3">✅ ${validFiles.length} valid file(s)</div>`;
                 validFiles.forEach(item => {
                     previewHtml += `
-                <div class="d-flex justify-content-between align-items-center p-2 border rounded mb-2">
-                    <span>${item.file.name}</span>
-                    <small class="text-success">✓ ${item.employeeId} - ${item.date}</small>
+                <div class="d-flex justify-content-between align-items-center p-2 border rounded mb-2 bg-light">
+                    <div>
+                        <strong>${item.file}</strong><br>
+                        <small class="text-muted">${item.area} | ${item.bio} | ${item.date}</small>
+                    </div>
+                    <span class="badge bg-success">✓ Valid</span>
                 </div>
             `;
             });
-                preview.html(previewHtml);
             }
 
             if (errors.length > 0) {
-                preview.append(`
-            <div class="alert alert-danger mt-2">
-                <strong>❌ Invalid files:</strong><br>${errors.join('<br>')}
+                previewHtml += `
+            <div class="alert alert-danger">
+                <strong>❌ ${errors.length} invalid file(s):</strong><br>
+                ${errors.join('<br>')}
             </div>
-        `);
+        `;
             }
+
+            preview.html(previewHtml);
+            preview.show();
+            multiIsProcessingFile = false;
         });
 
-// Multi Upload Form Submit
+
+// ✅ Multi-file submit with DETAILED error display
         $('#multiUploadForm').on('submit', function(e) {
             e.preventDefault();
 
@@ -520,55 +698,34 @@
                     'Accept': 'application/json'
                 },
                 success: function(response) {
-                    $('#multiUploadModal').modal('hide');
-                    $('#multiUploadForm')[0].reset();
-                    $('#multiPreview').empty();
-                    table.ajax.reload();
+                    let swalHtml = response.message;
 
-                    if (response.details) {  // ✅ Just check details exists
-                        let { success, failed, errors } = response.details;
-
-                        // ✅ FIXED: Build HTML properly
-                        let swalHtml = '';
-                        if (success > 0) {
-                            swalHtml = `✅ ${success} payslip(s) uploaded successfully!`;
-                        }
-
-                        if (failed > 0) {
-                            if (success > 0) {
-                                swalHtml += '<br><br>';
-                            }
-                            swalHtml += `<strong>❌ ${failed} failed:</strong><br>`;
-                            swalHtml += errors.map(error => `• ${error}`).join('<br>');
-                        }
-
-                        Swal.fire({
-                            icon: success > 0 ? 'success' : 'warning',
-                            title: success > 0 ? 'Upload Complete!' : (failed > 0 ? 'Upload Results' : 'Complete'),
-                            html: swalHtml || response.message || 'Processing complete.',
-                            confirmButtonText: 'OK',
-                            customClass: {
-                                popup: 'text-left'
-                            }
-                        });
+                    // ✅ SHOW DETAILED ERRORS if they exist
+                    if (response.details && response.details.errors && response.details.errors.length > 0) {
+                        swalHtml += '<div class="mt-3"><strong>Detailed Errors:</strong><br>';
+                        response.details.errors.forEach(error => {
+                            swalHtml += `<div class="mt-1">• ${error}</div>`;
+                    });
+                        swalHtml += '</div>';
                     }
-                },
 
+                    Swal.fire({
+                        icon: response.details && response.details.success > 0 ? 'success' : 'warning',
+                        title: 'Upload Complete!',
+                        html: swalHtml,
+                        customClass: {
+                            popup: 'text-left max-w-lg'
+                        },
+                        width: '500px'
+                    });
+
+                    resetMultiModal();
+                    table.ajax.reload();
+                    $('#multiUploadModal').modal('hide');
+                },
                 error: function(xhr) {
                     let response = xhr.responseJSON;
-
-                    // Handle validation errors from controller
-                    if (response && response.validation) {
-                        let errors = Object.values(response.errors).flat().join('<br>');
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Validation Error!',
-                            html: errors,
-                            customClass: { popup: 'text-left' }
-                        });
-                    } else {
-                        Swal.fire('Error!', response?.message || 'Something went wrong!', 'error');
-                    }
+                    Swal.fire('Error!', response?.message || 'Upload failed!', 'error');
                 },
                 complete: function() {
                     $btn.prop('disabled', false);
@@ -577,7 +734,10 @@
             });
         });
 
-
+// ✅ Modal cleanup
+        $('#multiUploadModal').on('hidden.bs.modal', function() {
+            resetMultiModal();
+        });
 
         $(document).on('click', '.delete-btn', function(e) {
             e.preventDefault();
@@ -607,7 +767,13 @@
                     },
                     success: function(response) {
                         console.log('SUCCESS:', response);
-                        Swal.fire('Deleted!', response.message || 'Payslip deleted!', 'success');
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Deleted!!',
+                            html: response.message || 'Payslip deleted!',
+                            showConfirmButton: false,
+                            timer: 2000
+                        });
                         if (typeof table !== 'undefined') {
                             table.ajax.reload();
                         }

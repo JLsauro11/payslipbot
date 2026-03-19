@@ -60,7 +60,8 @@ class PayslipController extends Controller
             $search = $request->search['value'];
             $query->where(function($q) use ($search) {
                 $q->whereHas('employee', function($sub) use ($search) {
-                    $sub->where('name', 'like', "%{$search}%")
+                    $sub->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
                         ->orWhere('employee_id', 'like', "%{$search}%");
                 })->orWhere('payslip_date', 'like', "%{$search}%");
             });
@@ -74,7 +75,8 @@ class PayslipController extends Controller
         $filteredRecords = clone $query;
         $filteredRecords = $filteredRecords->count();
 
-        $payslips = $query->orderBy($orderColumn, $orderDir)
+        $payslips = $query
+            ->orderBy($orderColumn, $orderDir)
             ->skip($request->start ?? 0)
             ->take($request->length ?? 25)
             ->get();
@@ -84,101 +86,170 @@ class PayslipController extends Controller
             'recordsTotal' => $totalRecords,
             'recordsFiltered' => $filteredRecords,
             'data' => $payslips->map(function ($payslip) {
-                return [
-                    'id' => $payslip->id,
-                    'employee_id' => $payslip->employee->employee_id ?? $payslip->employee_id,
-                    'name' => $payslip->employee->name ?? $payslip->name,
-                    'payslip' => $payslip->payslip ? $payslip->payslip : '-',
-                    'payslip_date' => $payslip->payslip_date ?: null,
-                ];
-            })
+                $employee = $payslip->employee;
+
+                $fname   = $employee?->first_name ?? '';
+            $lname   = $employee?->last_name ?? '';
+            $middle  = $employee?->middle_initial ? ' ' . $employee->middle_initial : '';
+            $suffix  = $employee?->suffix ? ' ' . trim($employee->suffix) : '';
+
+            if ($suffix) {
+                $name = trim("{$lname}, {$fname}{$suffix}{$middle}");
+            } else {
+                $name = trim("{$lname}, {$fname}{$middle}");
+            }
+
+            return [
+                'id' => $payslip->id,
+                'employee_id' => $payslip->employee_id,
+                'name' => $name ?: '-',
+                'payslip' => $payslip->payslip ? $payslip->payslip : '-',
+                'payslip_date' => $payslip->payslip_date ?: null,
+            ];
+        })
         ]);
     }
 
     public function multiStore(Request $request)
     {
         $files = $request->file('payslip_files');
-
         if (!$files || count($files) === 0) {
-            return response()->json([
-                'status' => false,
-                'message' => 'No files uploaded!'
-            ], 400);
+            return response()->json(['status' => false, 'message' => 'No files uploaded!'], 400);
         }
 
         $results = ['success' => 0, 'failed' => 0, 'errors' => []];
 
         foreach ($files as $file) {
             try {
-                $filename = $file->getClientOriginalName();
-                $nameWithoutExt = pathinfo($filename, PATHINFO_FILENAME);
+                $filename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
 
-                // Parse filename: EMPLOYEEID_MM_DD_YYYY.pdf
-                $parts = explode('_', $nameWithoutExt);
-
-                if (count($parts) !== 4) {
+                // ✅ Space check
+                if (preg_match('/EMP\s+(\d+)/', $filename, $spaceMatches)) {
                     $results['failed']++;
-                    $results['errors'][] = "❌ {$filename}: Invalid format. Use EMPLOYEEID_MM_DD_YYYY.pdf";
+                    $results['errors'][] = "❌ {$file->getClientOriginalName()}: 'EMP{$spaceMatches[1]}' contains space";
                     continue;
                 }
 
-                [$employeeId, $month, $day, $year] = $parts;
-                $payslipDate = sprintf('%02d/%02d/%04d', $month, $day, $year);
-
-                // Validate date format and business rules
-                $date = DateTime::createFromFormat('m/d/Y', $payslipDate);
-                if (!$date || $date->format('m/d/Y') !== $payslipDate) {
+                // ✅ Flexible regex
+                if (!preg_match('/(.+?)[_^](\d{8})_(\d{8})_EMP(\d+)/i', $filename, $dateMatches)) {
                     $results['failed']++;
-                    $results['errors'][] = "❌ {$filename}: Invalid date format";
+                    $results['errors'][] = "❌ {$file->getClientOriginalName()}: Invalid format";
                     continue;
                 }
 
-                $dayNum = (int)$date->format('d');
-                $daysInMonth = (int)$date->format('t');
+                $areaFromFile = trim($dateMatches[1]);
+                $startDateStr = $dateMatches[2];
+                $endDateStr = $dateMatches[3];
+                $fileEmployeeBio = $dateMatches[4];
 
-                if ($dayNum !== 15 && $dayNum !== $daysInMonth) {
+                // ✅ Name extraction
+                $namePart = substr($filename, strpos($filename, "EMP{$fileEmployeeBio}") + strlen("EMP{$fileEmployeeBio}"));
+                $namePart = trim(ltrim($namePart, '_^'));
+                $fileNameFromFilename = trim($namePart);
+
+                $startDate = DateTime::createFromFormat('Ymd', $startDateStr);
+                $endDate = DateTime::createFromFormat('Ymd', $endDateStr);
+
+                if (!$startDate || !$endDate) {
                     $results['failed']++;
-                    $results['errors'][] = "❌ {$filename}: Date must be 15th or last day of month";
+                    $results['errors'][] = "❌ {$file->getClientOriginalName()}: Invalid date";
                     continue;
                 }
 
-                // Check if employee exists
-                $employee = Employee::where('employee_id', $employeeId)->first();
+                $fileEmployeeBioFull = 'EMP' . $fileEmployeeBio;
+
+                $employee = Employee::join('areas', 'employees.area_id', '=', 'areas.id')
+                    ->where(function($query) use ($fileEmployeeBioFull, $fileEmployeeBio) {
+                        $query->where('employees.bio_number', $fileEmployeeBioFull)
+                            ->orWhere('employees.bio_number', $fileEmployeeBio);
+                    })
+                    ->whereRaw('UPPER(TRIM(areas.name)) = UPPER(TRIM(?))', [$areaFromFile])
+                    ->select(
+                        'employees.employee_id',
+                        'employees.first_name',
+                        'employees.last_name',
+                        'employees.middle_initial',
+                        'employees.suffix'
+                    )
+                    ->first();
+
                 if (!$employee) {
                     $results['failed']++;
-                    $results['errors'][] = "❌ {$filename}: Employee {$employeeId} not found";
+                    $results['errors'][] = "❌ {$file->getClientOriginalName()}: No employee '{$areaFromFile}' EMP{$fileEmployeeBio}";
                     continue;
                 }
 
-                // Check for duplicate payslip
-                $exists = Payslip::where('employee_id', $employeeId)
-                    ->where('payslip_date', $payslipDate)
+                // Build formatted name (same logic everywhere)
+                $fname   = $employee->first_name ?? '';
+                $lname   = $employee->last_name ?? '';
+                $middle  = $employee->middle_initial ? ' ' . $employee->middle_initial : '';
+                $suffix  = $employee->suffix ? ' ' . trim($employee->suffix) : '';
+
+                if ($suffix) {
+                    $name = trim("{$lname}, {$fname}{$suffix}{$middle}");
+                } else {
+                    $name = trim("{$lname}, {$fname}{$middle}");
+                }
+
+// ✅ Name verification using new fields (strict)
+                if (!empty($fileNameFromFilename)) {
+                    $dbNameUpper = strtoupper($name); // "SAURO, JHON LEWIS A"
+                    $fileNameUpper = strtoupper($fileNameFromFilename); // "SAURO, JHON LEWIS JACKSON A"
+
+                    // Extract Last, First only: "Sauro, Jhon Lewis"
+                    $dbParts = explode(',', $name, 2);
+                    $dbLast = trim($dbParts[0] ?? '');
+                    $dbFirst = trim($dbParts[1] ?? '');
+                    $dbBase = trim("{$dbLast}, {$dbFirst}");
+
+                    $fileParts = explode(',', $fileNameFromFilename, 2);
+                    $fileLast = trim($fileParts[0] ?? '');
+                    $fileFirst = trim($fileParts[1] ?? '');
+                    $fileBase = trim("{$fileLast}, {$fileFirst}");
+
+                    if (strtoupper($dbBase) !== strtoupper($fileBase)) {
+                        $results['failed']++;
+                        $results['errors'][] = "❌ {$file->getClientOriginalName()}: Name mismatch. Expected '{$dbBase}', got file name '{$fileBase}'";
+                        continue;
+                    }
+                }
+
+
+                // ✅ Payslip logic
+                $payslipMonth = $endDate->format('m');
+                $payslipYear = $endDate->format('Y');
+                $endDay = (int)$endDate->format('d');
+                $daysInMonth = (int)$endDate->format('t');
+                $payslipDay = ($endDay <= 15) ? 15 : $daysInMonth;
+                $payslipDateStr = "{$payslipMonth}/{$payslipDay}/{$payslipYear}";
+                $payslipDate = DateTime::createFromFormat('m/d/Y', $payslipDateStr);
+
+                $exists = Payslip::where('employee_id', $employee->employee_id)
+                    ->where('payslip_date', $payslipDateStr)
                     ->exists();
 
                 if ($exists) {
                     $results['failed']++;
-                    $results['errors'][] = "⚠️ {$filename}: Payslip already exists for {$employeeId} on {$payslipDate}";
+                    $results['errors'][] = "⚠️ {$file->getClientOriginalName()}: Duplicate {$payslipDateStr}";
                     continue;
                 }
 
-                // Generate final filename (use original for consistency)
-                $finalFilename = $filename;
+                $saveFilename = $employee->employee_id . '_' .
+                    $payslipDate->format('m') . '_' .
+                    $payslipDate->format('d') . '_' .
+                    $payslipDate->format('Y') . '.pdf';
 
-                // Ensure directory exists
                 $directory = public_path('payslips');
                 if (!File::exists($directory)) {
                     File::makeDirectory($directory, 0755, true);
                 }
+                $file->move($directory, $saveFilename);
 
-                // Move file
-                $file->move($directory, $finalFilename);
-
-                // Create record
                 Payslip::create([
-                    'employee_id' => $employeeId,
-                    'name' => $employee->name,
-                    'payslip' => $finalFilename,
-                    'payslip_date' => $payslipDate
+                    'employee_id' => $employee->employee_id,
+                    'name' => $name, // keep if you still have `name` in payslips
+                    'payslip' => $saveFilename,
+                    'payslip_date' => $payslipDateStr
                 ]);
 
                 $results['success']++;
@@ -189,86 +260,26 @@ class PayslipController extends Controller
             }
         }
 
-// ✅ FIXED MESSAGE LOGIC
-        $message = '';
-        if ($results['success'] > 0) {
-            $message .= "✅ {$results['success']} payslip(s) uploaded successfully!";
-        }
-        if ($results['failed'] > 0) {
-            if ($results['success'] > 0) {
-                $message .= ' ';  // Add space only if there's success message
-            }
-            $message .= "❌ {$results['failed']} failed. Check details below:";
-        }
+        $message = $results['success'] > 0
+            ? "✅ {$results['success']} uploaded successfully!"
+            : "No files uploaded successfully";
 
-// Clean up empty message
-        if (empty($message)) {
-            $message = 'No valid files processed.';
+        if ($results['failed'] > 0) {
+            $message .= "<br>❌ {$results['failed']} failed";
         }
 
         return response()->json([
-            'status' => $results['success'] > 0,
+            'status' => true,
             'message' => $message,
             'details' => $results
         ]);
     }
-
 
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'employee_id' => 'required|exists:employees,employee_id',
             'payslip_file' => 'required|file|mimes:pdf|max:10000',
-            'payslip_date' => [
-                'required',
-                'date_format:m/d/Y',
-                function ($attribute, $value, $fail) {
-                    $date = DateTime::createFromFormat('m/d/Y', $value);
-                    if (!$date) {
-                        return $fail('Invalid date format. Use MM/DD/YYYY.');
-                    }
-
-                    $day = (int)$date->format('d');
-                    $daysInMonth = (int)$date->format('t');
-
-                    if ($day !== 15 && $day !== $daysInMonth) {
-                        $fail("Payslip date must be the 15th ({$date->format('m/15/Y')}) OR last day of the month ({$date->format('m/' . $daysInMonth . '/Y')}).");
-                    }
-                },
-                // ✅ NEW: Validate filename matches payslip date
-                function ($attribute, $value, $fail) use ($request) {
-                    $file = $request->file('payslip_file');
-                    if (!$file) return;
-
-                    $filename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
-
-                    // Expected pattern: EMPLOYEEID_MM_DD_YYYY
-                    if (!preg_match('/^(\d+)_(\d{2})_(\d{2})_(\d{4})$/', $filename, $matches)) {
-                        return $fail('Payslip filename must follow format: EMPLOYEEID_MM_DD_YYYY.pdf');
-                    }
-
-                    $fileEmployeeId = $matches[1];
-                    $fileMonth = sprintf('%02d', (int)$matches[2]);
-                    $fileDay = sprintf('%02d', (int)$matches[3]);
-                    $fileYear = $matches[4];
-
-                    // Compare with form employee_id and payslip_date
-                    $formEmployeeId = $request->employee_id;
-                    $formDate = DateTime::createFromFormat('m/d/Y', $value);
-                    $formMonth = $formDate->format('m');
-                    $formDay = $formDate->format('d');
-                    $formYear = $formDate->format('Y');
-
-                    if ($fileEmployeeId !== $formEmployeeId ||
-                        $fileMonth !== $formMonth ||
-                        $fileDay !== $formDay ||
-                        $fileYear !== $formYear) {
-
-                        $expectedFilename = "{$formEmployeeId}_{$formMonth}_{$formDay}_{$formYear}.pdf";
-                        $fail("Filename date ({$fileMonth}/{$fileDay}/{$fileYear}) doesn't match payslip date ({$value}). Expected: {$expectedFilename}");
-                    }
-                },
-            ],
         ]);
 
         if ($validator->fails()) {
@@ -279,44 +290,160 @@ class PayslipController extends Controller
             ], 422);
         }
 
-        // Rest of your existing code remains the same...
-        $date = DateTime::createFromFormat('m/d/Y', $request->payslip_date);
+        $file = $request->file('payslip_file');
+        $filename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+
+        // ✅ Space check
+        if (preg_match('/EMP\s+(\d+)/', $filename, $spaceMatches)) {
+            return response()->json([
+                'status' => false,
+                'message' => "Invalid filename: 'EMP{$spaceMatches[1]}' contains space. Use 'EMP{$spaceMatches[1]}' without space."
+            ], 422);
+        }
+
+        // ✅ FLEXIBLE regex (handles ^ and _)
+        if (!preg_match('/(.+?)[_^](\d{8})_(\d{8})_EMP(\d+)/i', $filename, $matches)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Filename must be: AREA^YYYYMMDD_YYYYMMDD_EMPXXX^NAME.pdf'
+            ], 422);
+        }
+
+        $areaFromFile = trim($matches[1]);
+        $startDateStr = $matches[2];
+        $endDateStr = $matches[3];
+        $fileEmployeeBio = $matches[4];
+
+        // ✅ EXTRACT NAME from filename
+        $namePart = substr($filename, strpos($filename, "EMP{$fileEmployeeBio}") + strlen("EMP{$fileEmployeeBio}"));
+        $fileNameFromFilename = trim(ltrim($namePart, '_^'));
+
+        $startDate = DateTime::createFromFormat('Ymd', $startDateStr);
+        $endDate = DateTime::createFromFormat('Ymd', $endDateStr);
+
+        if (!$startDate || !$endDate) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Invalid date format in filename'
+            ], 422);
+        }
+
+        // ✅ Find employee by FILE area + bio
+        $fileEmployeeBioFull = 'EMP' . $fileEmployeeBio;
+        $employeeFromFile = Employee::join('areas', 'employees.area_id', '=', 'areas.id')
+            ->where(function($query) use ($fileEmployeeBioFull, $fileEmployeeBio) {
+                $query->where('employees.bio_number', $fileEmployeeBioFull)
+                    ->orWhere('employees.bio_number', $fileEmployeeBio);
+            })
+            ->whereRaw('UPPER(TRIM(areas.name)) = UPPER(TRIM(?))', [$areaFromFile])
+            ->select(
+                'employees.employee_id',
+                'employees.first_name',
+                'employees.last_name',
+                'employees.middle_initial',
+                'employees.suffix'
+            )
+            ->first();
+
+        if (!$employeeFromFile) {
+            return response()->json([
+                'status' => false,
+                'message' => "No employee found for '{$areaFromFile}' EMP{$fileEmployeeBio}"
+            ], 409);
+        }
+
+        // ✅ Get SELECTED employee
+        $selectedEmployee = Employee::where('employee_id', $request->employee_id)->firstOrFail();
+
+        // ✅ CHECK 1: Employee ID must match
+        if ($selectedEmployee->employee_id !== $employeeFromFile->employee_id) {
+            return response()->json([
+                'status' => false,
+                'message' => "Selected employee {$selectedEmployee->employee_id} doesn't match file employee {$employeeFromFile->employee_id}"
+            ], 409);
+        }
+
+// ✅ Build expected name from new fields
+        $fname   = $employeeFromFile->first_name ?? '';
+        $lname   = $employeeFromFile->last_name ?? '';
+        $middle  = $employeeFromFile->middle_initial ? ' ' . $employeeFromFile->middle_initial : '';
+        $suffix  = $employeeFromFile->suffix ? ' ' . trim($employeeFromFile->suffix) : '';
+
+        if ($suffix) {
+            $expectedName = trim("{$lname}, {$fname}{$suffix}{$middle}");
+        } else {
+            $expectedName = trim("{$lname}, {$fname}{$middle}");
+        }
+
+// ✅ Strict base‑name match (Last, First)
+        $dbParts = explode(',', $expectedName, 2);
+        $dbLast = trim($dbParts[0] ?? '');
+        $dbFirst = trim($dbParts[1] ?? '');
+        $dbBase = trim("{$dbLast}, {$dbFirst}");
+
+        $fileParts = explode(',', $fileNameFromFilename, 2);
+        $fileLast = trim($fileParts[0] ?? '');
+        $fileFirst = trim($fileParts[1] ?? '');
+        $fileBase = trim("{$fileLast}, {$fileFirst}");
+
+        if (strtoupper($dbBase) !== strtoupper($fileBase)) {
+            return response()->json([
+                'status' => false,
+                'message' => "Name mismatch! File name '{$fileBase}' doesn't match expected '{$dbBase}'"
+            ], 409);
+        }
+
+
+
+        // ✅ Calculate payslip date + rest unchanged...
+        $payslipMonth = $endDate->format('m');
+        $payslipYear = $endDate->format('Y');
+        $endDay = (int)$endDate->format('d');
+        $daysInMonth = (int)$endDate->format('t');
+        $payslipDay = ($endDay <= 15) ? 15 : $daysInMonth;
+        $payslipDateStr = "{$payslipMonth}/{$payslipDay}/{$payslipYear}";
+        $payslipDate = DateTime::createFromFormat('m/d/Y', $payslipDateStr);
+
         $exists = Payslip::where('employee_id', $request->employee_id)
-            ->where('payslip_date', $request->payslip_date)
+            ->where('payslip_date', $payslipDateStr)
             ->exists();
 
         if ($exists) {
             return response()->json([
                 'status' => false,
-                'message' => 'Payslip for this employee and date already exists!'
+                'message' => "Payslip for {$payslipDateStr} already exists!"
             ], 409);
         }
 
-        $employee = Employee::where('employee_id', $request->employee_id)->firstOrFail();
-        $file = $request->file('payslip_file');
-
-        $filename = $request->employee_id . '_' .
-            $date->format('m') . '_' .
-            $date->format('d') . '_' .
-            $date->format('Y') . '.pdf';
+        $saveFilename = $request->employee_id . '_' . $payslipDate->format('m') . '_' . $payslipDate->format('d') . '_' . $payslipDate->format('Y') . '.pdf';
 
         $directory = public_path('payslips');
         if (!File::exists($directory)) {
             File::makeDirectory($directory, 0755, true);
         }
+        $file->move($directory, $saveFilename);
 
-        $path = $file->move($directory, $filename);
+        $fname   = $employeeFromFile->first_name ?? '';
+        $lname   = $employeeFromFile->last_name ?? '';
+        $middle  = $employeeFromFile->middle_initial ? ' ' . $employeeFromFile->middle_initial : '';
+        $suffix  = $employeeFromFile->suffix ? ' ' . trim($employeeFromFile->suffix) : '';
+
+        if ($suffix) {
+            $name = trim("{$lname}, {$fname}{$suffix}{$middle}");
+        } else {
+            $name = trim("{$lname}, {$fname}{$middle}");
+        }
 
         Payslip::create([
             'employee_id' => $request->employee_id,
-            'name' => $employee->name,
-            'payslip' => $filename,
-            'payslip_date' => $date->format('m/d/Y')
+            'name' => $name,
+            'payslip' => $saveFilename,
+            'payslip_date' => $payslipDateStr
         ]);
 
         return response()->json([
             'status' => true,
-            'message' => 'Payslip uploaded successfully!'
+            'message' => "Payslip uploaded successfully for {$payslipDateStr}!"
         ]);
     }
 
@@ -328,24 +455,8 @@ class PayslipController extends Controller
     public function update(Request $request, Payslip $payslip)
     {
         $validator = Validator::make($request->all(), [
-            'payslip_date' => [
-                'required',
-                'date_format:m/d/Y',
-                function ($attribute, $value, $fail) {
-                    $date = DateTime::createFromFormat('m/d/Y', $value);
-                    if (!$date) {
-                        return $fail('Invalid date format. Use MM/DD/YYYY.');
-                    }
-
-                    $day = (int)$date->format('d');
-                    $daysInMonth = (int)$date->format('t');
-
-                    if ($day !== 15 && $day !== $daysInMonth) {
-                        $fail("Payslip date must be the 15th ({$date->format('m/15/Y')}) OR last day of the month ({$date->format('m/' . $daysInMonth . '/Y')}).");
-                    }
-                },
-            ],
-            'payslip_file' => 'nullable|file|mimes:pdf|max:2048'
+            'employee_id' => 'required|exists:employees,employee_id',
+            'payslip_file' => 'required|file|mimes:pdf|max:10000',
         ]);
 
         if ($validator->fails()) {
@@ -356,46 +467,120 @@ class PayslipController extends Controller
             ], 422);
         }
 
-        $newDate = DateTime::createFromFormat('m/d/Y', $request->payslip_date);
-        $newFilename = $payslip->employee_id . '_' .
-            $newDate->format('m') . '_' .
-            $newDate->format('d') . '_' .
-            $newDate->format('Y') . '.pdf';
+        $file = $request->file('payslip_file');
+        $filename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
 
-        $data = [
-            'payslip_date' => $request->payslip_date,
-            'payslip' => $newFilename  // ✅ Correct column name
-        ];
-
-        if ($request->hasFile('payslip_file')) {
-            $file = $request->file('payslip_file');
-            if ($payslip->payslip && file_exists(public_path('payslips/' . $payslip->payslip))) {
-                unlink(public_path('payslips/' . $payslip->payslip));
-            }
-            $file->move(public_path('payslips'), $newFilename);
-        }
-        else {
-            // ✅ FIXED: Correct column name
-            $oldFilename = $payslip->payslip;  // ← KEY FIX
-            $oldPath = public_path('payslips/' . $oldFilename);
-            $newPath = public_path('payslips/' . $newFilename);
-
-            if (file_exists($oldPath)) {
-                rename($oldPath, $newPath);
-            }
+        if (preg_match('/EMP\s+(\d+)/', $filename, $spaceMatches)) {
+            return response()->json([
+                'status' => false,
+                'message' => "Invalid filename: 'EMP{$spaceMatches[1]}' contains space. Use 'EMP{$spaceMatches[1]}' without space."
+            ], 422);
         }
 
-        $payslip->update($data);
+        if (!preg_match('/(\d{8})_(\d{8})_EMP(\d+)/', $filename, $matches)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Filename must contain pattern YYYYMMDD_YYYYMMDD_EMPXXX (no spaces in EMP code)'
+            ], 422);
+        }
+
+        $startDateStr = $matches[1];
+        $endDateStr = $matches[2];
+        $fileEmployeeBio = $matches[3];
+        $areaFromFile = trim(explode('^', $filename)[0]);
+
+        $startDate = DateTime::createFromFormat('Ymd', $startDateStr);
+        $endDate = DateTime::createFromFormat('Ymd', $endDateStr);
+
+        if (!$startDate || !$endDate) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Invalid date format in filename'
+            ], 422);
+        }
+
+        $fileEmployeeBioFull = 'EMP' . $fileEmployeeBio;
+        $employeeFromFile = Employee::join('areas', 'employees.area_id', '=', 'areas.id')
+            ->where(function($query) use ($fileEmployeeBioFull, $fileEmployeeBio) {
+                $query->where('employees.bio_number', $fileEmployeeBioFull)
+                    ->orWhere('employees.bio_number', $fileEmployeeBio);
+            })
+            ->whereRaw('UPPER(areas.name) = ?', [strtoupper($areaFromFile)])
+            ->select(
+                'employees.employee_id',
+                'employees.name as employee_name',
+                'employees.bio_number',
+                'areas.name as area_name'
+            )
+            ->first();
+
+        if (!$employeeFromFile) {
+            return response()->json([
+                'status' => false,
+                'message' => "No employee found for area '{$areaFromFile}' and bio 'EMP{$fileEmployeeBio}'"
+            ], 409);
+        }
+
+        $selectedEmployee = Employee::where('employee_id', $request->employee_id)->firstOrFail();
+        if ($selectedEmployee->employee_id !== $employeeFromFile->employee_id) {
+            return response()->json([
+                'status' => false,
+                'message' => "Selected employee {$selectedEmployee->employee_id} doesn't match file employee {$employeeFromFile->employee_id} ({$areaFromFile} EMP{$fileEmployeeBio})"
+            ], 409);
+        }
+
+        // ✅ FIXED: Create $payslipDate BEFORE using it
+        $payslipMonth = $endDate->format('m');
+        $payslipYear = $endDate->format('Y');
+        $endDay = (int)$endDate->format('d');
+        $daysInMonth = (int)$endDate->format('t');
+        $payslipDay = ($endDay <= 15) ? 15 : $daysInMonth;
+        $payslipDateStr = "{$payslipMonth}/{$payslipDay}/{$payslipYear}";
+
+        $payslipDate = DateTime::createFromFormat('m/d/Y', $payslipDateStr); // ✅ MISSING LINE
+
+        $exists = Payslip::where('employee_id', $request->employee_id)
+            ->where('payslip_date', $payslipDateStr)
+            ->where('id', '!=', $payslip->id)
+            ->exists();
+
+        if ($exists) {
+            return response()->json([
+                'status' => false,
+                'message' => "Payslip for {$payslipDateStr} already exists!"
+            ], 409);
+        }
+
+        // Delete old file
+        if ($payslip->payslip && file_exists(public_path('payslips/' . $payslip->payslip))) {
+            unlink(public_path('payslips/' . $payslip->payslip));
+        }
+
+        // ✅ Now $payslipDate is defined and safe to use
+        $saveFilename = $request->employee_id . '_' .
+            $payslipDate->format('m') . '_' .  // ✅ SAFE
+            $payslipDate->format('d') . '_' .  // ✅ SAFE
+            $payslipDate->format('Y') . '.pdf'; // ✅ SAFE
+
+        $directory = public_path('payslips');
+        if (!File::exists($directory)) {
+            File::makeDirectory($directory, 0755, true);
+        }
+
+        $file->move($directory, $saveFilename);
+
+        $payslip->update([
+            'employee_id' => $request->employee_id,
+            'name' => $name,
+            'payslip' => $saveFilename,
+            'payslip_date' => $payslipDateStr
+        ]);
 
         return response()->json([
             'status' => true,
-            'message' => "Payslip updated successfully!"
+            'message' => "Payslip updated successfully for {$payslipDateStr}!"
         ]);
     }
-
-
-
-
 
     public function destroy(Payslip $payslip)
     {

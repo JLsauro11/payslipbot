@@ -160,11 +160,11 @@
 
         var selectedIds = [];
 
-        // Initialize DataTable
+// Initialize DataTable
         let table = $('#employeesTable').DataTable({
             ajax: {
                 url: '{{ route("employees.data") }}',
-                dataSrc: 'data'
+                dataSrc: ''  // ✅ Returns array directly
             },
             columns: [
                 {
@@ -185,11 +185,15 @@
                     defaultContent: '-'
                 },
                 {
-                    data: 'area',  // ✅ Still works via your accessor
+                    data: 'area',
                     name: 'area',
                     defaultContent: '-'
                 },
-                { data: 'name', name: 'name' },
+                {
+                    data: 'display_name',  // ✅ CHANGED: 'name' → 'display_name'
+                    name: 'display_name',  // ✅ Updated name too
+                    defaultContent: '-'
+                },
                 {
                     data: 'password',
                     name: 'password',
@@ -198,22 +202,22 @@
                     render: function(data, type, row) {
                         if (!data) return '-';
                         return `
-        <div class="position-relative password-container">
-            <span class="password-text hidden fw-monospace" data-password="${data}" style="font-family: monospace; min-width: 100px; display: block;">●●●●●●●●</span>
-            <i class="feather feather-eye-off password-toggle"
-               style="cursor: pointer; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); z-index: 10; color: #6c757d; opacity: 0.7; font-size: 16px;"></i>
-        </div>
-    `;
+                    <div class="position-relative password-container">
+                        <span class="password-text hidden fw-monospace" data-password="${data}" style="font-family: monospace; min-width: 100px; display: block;">●●●●●●●●</span>
+                        <i class="feather feather-eye-off password-toggle"
+                           style="cursor: pointer; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); z-index: 10; color: #6c757d; opacity: 0.7; font-size: 16px;"></i>
+                    </div>
+                `;
                     },
                     width: "160px"
                 },
                 {
-                    data: 'position',  // ✅ Still works via your accessor
+                    data: 'position',
                     name: 'position',
                     defaultContent: '-'
                 },
                 {
-                    data: 'department',  // ✅ Still works via your accessor
+                    data: 'department',
                     name: 'department',
                     defaultContent: '-'
                 },
@@ -231,15 +235,15 @@
                     searchable: false,
                     render: function(data, type, row) {
                         return `
-                        <div class="btn-group" role="group">
-                            <button class="btn btn-sm btn-warning edit-btn me-1" data-id="${row.id}">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger delete-btn" data-id="${row.id}">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    `;
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-warning edit-btn me-1" data-id="${row.id}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger delete-btn" data-id="${row.id}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                `;
                     },
                     width: "15%"
                 }
@@ -252,6 +256,7 @@
                 lengthMenu: "Show _MENU_ entries"
             }
         });
+
 
         $(document).on('click', '.password-toggle', function() {
             let $container = $(this).closest('.password-container');
@@ -269,7 +274,7 @@
             }
         });
 
-        // Add/Edit Modal
+// ✅ Add Modal (unchanged)
         window.openAddModal = function() {
             $('#employeeForm')[0].reset();
             $('#id').val('');
@@ -277,12 +282,12 @@
             $('#employeeModalTitle').text('Add Employee');
 
             $('#employeeModal').modal('show');
-            loadAreas();      // ✅ Will initialize Select2
-            loadDepartments(); // ✅ Will initialize Select2
-            loadPositions();  // ✅ Will initialize Select2
+            loadAreas();
+            loadDepartments();
+            loadPositions();
         };
 
-
+        // ✅ FIXED: Edit button handler (matches controller response)
         $(document).on('click', '.edit-btn', function() {
             let id = $(this).data('id');
             let url = `{{ route('employees.show', ':id') }}`.replace(':id', id);
@@ -293,36 +298,36 @@
                 success: function(employee) {
                     console.log('Employee:', employee);
 
-                    // ✅ Fill ALL form fields
+                    // ✅ Fixed field mapping
                     $('#id').val(employee.id);
                     $('#employee_number').val(employee.employee_number || employee.employee_id);
                     $('#bio_number').val(employee.bio_number || '');
-                    $('#name').val(employee.name);
-                    $('#position_id').val(employee.position || '');
-                    $('#department_id').val(employee.department || '');
+                    $('#first_name').val(employee.first_name || '');
+                    $('#last_name').val(employee.last_name || '');
+                    $('#middle_initial').val(employee.middle_initial || '');
+                    $('#suffix').val(employee.suffix || '');
                     $('#status').val(employee.status || 'Active');
 
-                    // ✅ Show password field on edit
                     $('.password-field').show();
                     $('#password').val('');
 
                     $('#employeeModalTitle').text('Edit Employee');
-
                     $('#employeeModal').modal('show');
 
-                    loadAreas();
-                    loadDepartments();
-                    loadPositions();
+                    $.when(loadAreas(), loadDepartments(), loadPositions()).done(function() {
+                        $('#area_id').val(employee.area_id || '').trigger('change');
+                        $('#position_id').val(employee.position_id || '').trigger('change');
+                        $('#department_id').val(employee.department_id || '').trigger('change');
+                    });
                 },
-                error: function() {
-                    Swal.fire('Error!', 'Employee not found', 'error');
+                error: function(xhr) {
+                    console.error('Error loading employee:', xhr);
+                    Swal.fire('Error!', 'Failed to load employee data.', 'error');
                 }
             });
         });
 
-
-
-
+        // ✅ Form Submit (minor cleanup)
         $('#employeeForm').on('submit', function(e) {
             e.preventDefault();
 
@@ -331,8 +336,9 @@
 
             let formData = new FormData(this);
             if (employeeId) {
-                formData.append('_method', 'PUT');  // Method spoofing
+                formData.append('_method', 'PUT');
             }
+
             let $btn = $('#employeeSubmitBtn');
             let $spinner = $('#employeeSpinner');
 
@@ -355,12 +361,12 @@
                             icon: 'success',
                             title: 'Success!',
                             text: response.message,
-                            timer: 1500
+                            showConfirmButton: false,
+                            timer: 2000
                         });
                         $('#employeeModal').modal('hide');
                         table.ajax.reload();
                         $('#employeeForm')[0].reset();
-                        $('#employee_id').val(''); // Clear hidden ID
                     }
                 },
                 error: function(xhr) {
@@ -409,8 +415,6 @@
             }
         });
         });
-
-
 
         // Select All checkbox handler (NEW)
         $('#employeesTable thead').on('change', '#employeeSelectAll', function() {
@@ -581,7 +585,6 @@
                 }
             });
         }
-
     });
 </script>
 

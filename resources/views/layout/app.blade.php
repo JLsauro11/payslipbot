@@ -579,8 +579,6 @@
     </div>
 </div>
 
-
-
 <!-- Account Settings Modal - FIXED -->
 <div class="modal fade" id="accountSettingsModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg">

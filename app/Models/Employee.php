@@ -48,6 +48,11 @@ class Employee extends Model
         return $this->belongsTo(Department::class);
     }
 
+    public function payslips()
+    {
+        return $this->hasMany(Payslip::class, 'employee_id', 'employee_id');
+    }
+
     public function setPasswordAttribute($value): void
     {
         $this->attributes['password'] = $value;

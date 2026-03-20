@@ -82,7 +82,7 @@ class EmployeeController extends Controller
             'area_id' => 'required|exists:areas,id',
             'first_name' => 'required|string|max:100',
             'last_name' => 'required|string|max:100',
-            'middle_initial' => 'nullable|string|max:10',
+            'middle_initial' => 'nullable|regex:/^[A-Za-z]$/|max:1', // ✅ 1 character only
             'position_id' => 'required|exists:positions,id',
             'department_id' => 'required|exists:departments,id',
             'status' => 'required|in:Active,Inactive',
@@ -106,14 +106,20 @@ class EmployeeController extends Controller
             ], 422);
         }
 
+        // ✅ Auto-format names to sentence case
+        $firstName = ucwords(strtolower(trim($request->first_name)));
+        $lastName = ucwords(strtolower(trim($request->last_name)));
+        $middleInitial = strtoupper(trim($request->middle_initial ?? '')); // Uppercase initial
+        $suffix = ucwords(strtolower(trim($request->suffix ?? '')));
+
         $password = $request->password ?: 'RS8-' . str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
 
         Employee::create([
             'employee_id' => $request->employee_number,
-            'first_name' => $request->first_name,
-            'last_name' => $request->last_name,
-            'middle_initial' => $request->middle_initial,
-            'suffix' => $request->suffix, // ✅ new
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'middle_initial' => $middleInitial,
+            'suffix' => $suffix,
             'bio_number' => $request->bio_number,
             'area_id' => $request->area_id,
             'position_id' => $request->position_id,
@@ -122,10 +128,9 @@ class EmployeeController extends Controller
             'status' => $request->status
         ]);
 
-
         return response()->json([
             'status' => true,
-            'message' => "Employee {$request->first_name} {$request->last_name} added successfully!"
+            'message' => "Employee {$firstName} {$lastName} added successfully!"
         ]);
     }
 
@@ -159,7 +164,7 @@ class EmployeeController extends Controller
             'bio_number' => 'required|string|max:20',
             'first_name' => 'required|string|max:100',
             'last_name' => 'required|string|max:100',
-            'middle_initial' => 'nullable|string|max:10',
+            'middle_initial' => 'nullable|regex:/^[A-Za-z]$/|max:1', // ✅ 1 character only
             'area_id' => 'required|exists:areas,id',
             'position_id' => 'required|exists:positions,id',
             'department_id' => 'required|exists:departments,id',
@@ -185,19 +190,24 @@ class EmployeeController extends Controller
             ], 422);
         }
 
+        // ✅ Auto-format names to sentence case
+        $firstName = ucwords(strtolower(trim($request->first_name)));
+        $lastName = ucwords(strtolower(trim($request->last_name)));
+        $middleInitial = strtoupper(trim($request->middle_initial ?? ''));
+        $suffix = ucwords(strtolower(trim($request->suffix ?? '')));
+
         $updateData = [
             'employee_id' => $request->employee_number,
-            'first_name' => $request->first_name,
-            'last_name' => $request->last_name,
-            'middle_initial' => $request->middle_initial,
-            'suffix' => $request->suffix, // ✅ include suffix
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'middle_initial' => $middleInitial,
+            'suffix' => $suffix,
             'bio_number' => $request->bio_number,
             'area_id' => $request->area_id,
             'position_id' => $request->position_id,
             'department_id' => $request->department_id,
             'status' => $request->status
         ];
-
 
         if ($request->filled('password')) {
             $updateData['password'] = $request->password;
@@ -207,16 +217,16 @@ class EmployeeController extends Controller
 
         return response()->json([
             'status' => true,
-            'message' => "Employee updated successfully!"
+            'message' => "Employee {$firstName} {$lastName} updated successfully!"
         ]);
     }
 
     public function destroy(Employee $employee)
     {
-        // ✅ 1. Get ALL payslips for this employee first
-        $payslips = Payslip::where('id', $employee->id)->get();
+        // ✅ Get payslips via relationship
+        $payslips = $employee->payslips;
 
-        // ✅ 2. Delete ALL associated files
+        // ✅ Delete files first
         foreach ($payslips as $payslip) {
             $filePath = public_path('payslips/' . $payslip->payslip);
             if (File::exists($filePath)) {
@@ -224,17 +234,16 @@ class EmployeeController extends Controller
             }
         }
 
-        // ✅ 3. Delete ALL payslips (DB records)
-        Payslip::where('id', $employee->id)->delete();
-
-        // ✅ 4. Delete employee
+        // ✅ Delete everything (payslips + employee)
+        $employee->payslips()->delete();
         $employee->delete();
 
         return response()->json([
             'status' => true,
-            'message' => 'Employee and all payslips deleted successfully!'
+            'message' => "Employee and all {$payslips->count()} payslips deleted successfully!"
         ]);
     }
+
 
     public function bulkDelete(Request $request)
     {
@@ -244,29 +253,31 @@ class EmployeeController extends Controller
             return response()->json(['status' => false, 'message' => 'No items selected'], 400);
         }
 
-        $deletedCount = 0;
+        $employees = Employee::whereIn('id', $ids)->get();
+        $deletedCount = $employees->count();
+        $totalPayslipsDeleted = 0;
 
-        // ✅ FIX: Process each ID individually OR pass $ids to closure
-        foreach ($ids as $id) {
-            $employee = Employee::find($id);
-            if ($employee) {
-                // Delete payslips first
-                $payslips = Payslip::where('id', $employee->id)->get();
-                foreach ($payslips as $payslip) {
-                    $filePath = public_path('payslips/' . $payslip->payslip);
-                    if (File::exists($filePath)) {
-                        File::delete($filePath);
-                    }
+        foreach ($employees as $employee) {
+            // Get payslips via relationship
+            $payslips = $employee->payslips;
+            $totalPayslipsDeleted += $payslips->count();
+
+            // Delete files first
+            foreach ($payslips as $payslip) {
+                $filePath = public_path('payslips/' . $payslip->payslip);
+                if (File::exists($filePath)) {
+                    File::delete($filePath);
                 }
-                Payslip::where('id', $employee->id)->delete();
-                $employee->delete();
-                $deletedCount++;
             }
+
+            // Delete everything
+            $employee->payslips()->delete();
+            $employee->delete();
         }
 
         return response()->json([
             'status' => true,
-            'message' => "{$deletedCount} employee(s) deleted successfully!"
+            'message' => "{$deletedCount} employee(s) and {$totalPayslipsDeleted} payslip(s) deleted successfully!"
         ]);
     }
 

@@ -191,14 +191,34 @@ class FacebookController extends Controller
             return;
         }
 
+        // ✅ Build formatted name from individual columns
+        $firstName = trim($employee->first_name ?? '');
+        $lastName = trim($employee->last_name ?? '');
+        $middleInitial = trim($employee->middle_initial ?? '');
+        $suffix = trim($employee->suffix ?? '');
+
+        // Base format: "last_name, first_name middle_initial"
+        $formattedName = $lastName . ', ' . $firstName;
+
+        // Add middle initial if exists
+        if ($middleInitial) {
+            $formattedName .= ' ' . $middleInitial;
+        }
+
+        // Add suffix if exists: "last_name, first_name suffix middle_initial"
+        if ($suffix) {
+            $formattedName .= ' ' . $suffix;
+        }
+
         Cache::put("bot_state_{$senderId}", [
             'state' => 'waiting_privacy_current_password',
             'employee_id' => $employeeId,
-            'employee_name' => $employee->name
+            'employee_name' => $formattedName
         ], self::CACHE_TTL);
 
-        $this->askPrivacyCurrentPassword($senderId, $employee->name);
+        $this->askPrivacyCurrentPassword($senderId, $formattedName);
     }
+
 
     protected function askPrivacyCurrentPassword(string $senderId, string $employeeName): void
     {
@@ -206,11 +226,12 @@ class FacebookController extends Controller
         Cache::put("bot_state_{$senderId}", [
             'state' => 'waiting_privacy_current_password',
             'employee_id' => $stateData['employee_id'] ?? null,
-            'employee_name' => $employeeName
+            'employee_name' => $employeeName  // ✅ Already uses formatted name
         ], self::CACHE_TTL);
 
         $this->sendMessage($senderId, ['text' => "🔐 Enter current password for {$employeeName}:"]);
     }
+
 
     protected function verifyPrivacyCurrentPassword(string $senderId, string $currentPassword): void
     {
@@ -227,6 +248,7 @@ class FacebookController extends Controller
 
         if (!$employee || !$employee->verifyPassword($currentPassword)) {
             $this->sendMessage($senderId, ['text' => "❌ Wrong current password! Try again."]);
+            // ✅ Pass formatted employee name
             $this->askPrivacyCurrentPassword($senderId, $employeeName);
             return;
         }
@@ -239,6 +261,7 @@ class FacebookController extends Controller
         $this->sendMessage($senderId, ['text' => "✅ Current password verified!"]);
         $this->askPrivacyNewPassword($senderId);
     }
+
 
     protected function askPrivacyNewPassword(string $senderId): void
     {
@@ -257,7 +280,7 @@ class FacebookController extends Controller
         Cache::put("bot_state_{$senderId}", [
             'state' => 'waiting_privacy_confirm_password',
             'employee_id' => $stateData['employee_id'] ?? null,
-            'employee_name' => $stateData['employee_name'] ?? null,
+            'employee_name' => $stateData['employee_name'] ?? null,  // ✅ Already stores formatted name
             'new_password' => $newPassword
         ], self::CACHE_TTL);
 
@@ -313,14 +336,34 @@ class FacebookController extends Controller
             return;
         }
 
+        // ✅ Build formatted name from individual columns
+        $firstName = trim($employee->first_name ?? '');
+        $lastName = trim($employee->last_name ?? '');
+        $middleInitial = trim($employee->middle_initial ?? '');
+        $suffix = trim($employee->suffix ?? '');
+
+        // Base format: "last_name, first_name middle_initial"
+        $formattedName = $lastName . ', ' . $firstName;
+
+        // Add middle initial if exists
+        if ($middleInitial) {
+            $formattedName .= ' ' . $middleInitial;
+        }
+
+        // Add suffix if exists: "last_name, first_name suffix middle_initial"
+        if ($suffix) {
+            $formattedName .= ' ' . $suffix;
+        }
+
         Cache::put("bot_state_{$senderId}", [
             'state' => 'waiting_password',
             'employee_id' => $employeeId,
-            'employee_name' => $employee->name
+            'employee_name' => $formattedName  // ✅ Uses formatted name
         ], self::CACHE_TTL);
 
-        $this->askPassword($senderId, $employee->name);
+        $this->askPassword($senderId, $formattedName);  // ✅ Pass formatted name
     }
+
 
     protected function askPassword(string $senderId, string $employeeName): void
     {

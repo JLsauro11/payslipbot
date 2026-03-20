@@ -8,7 +8,7 @@ class Payslip extends Model
 {
     protected $fillable = [
         'employee_id',
-        // 'name',   ← REMOVE this line
+         'name',
         'payslip',
         'payslip_date',
     ];

@@ -465,22 +465,25 @@ class FacebookController extends Controller
     protected function generatePayslipOptions(Carbon $now, string $employeeId): array
     {
         $options = [];
+
+        // Check LAST MONTH + CURRENT (if day >=15) — drops 2 months back
+        $oneMonthBack = $now->copy()->subMonth();
         $monthsToCheck = [
-            $now->copy()->subMonths(2),
-            $now->copy()->subMonth(),
-            ...($now->day >= 15 ? [$now->copy()] : [])
-        ];
+            $oneMonthBack,
+        ...($now->day >= 15 ? [$now->copy()] : [])
+    ];
 
-        foreach ($monthsToCheck as $monthDate) {
-            $options = array_merge($options, $this->generateMonthOptions($monthDate, $employeeId, $now));
-        }
-
-        usort($options, fn($a, $b) =>
-            Carbon::createFromFormat('m/d/Y', $a['date']) <=> Carbon::createFromFormat('m/d/Y', $b['date'])
-        );
-
-        return $options;
+    foreach ($monthsToCheck as $monthDate) {
+        $options = array_merge($options, $this->generateMonthOptions($monthDate, $employeeId, $now));
     }
+
+    usort($options, fn($a, $b) =>
+        Carbon::createFromFormat('m/d/Y', $a['date']) <=> Carbon::createFromFormat('m/d/Y', $b['date'])
+    );
+
+    return $options;
+}
+
 
     private function generateMonthOptions(Carbon $monthDate, string $employeeId, Carbon $now): array
     {

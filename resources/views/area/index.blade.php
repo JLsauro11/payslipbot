@@ -172,9 +172,53 @@
             language: {
                 search: "Search areas:",
                 lengthMenu: "Show _MENU_ entries"
-            }
+            },
+            // 👇 Sticky header + footer
+            fixedHeader: {
+                header: true,
+                footer: true
+            },
+
+            // Optional: if you want internal Y‑scroll (not full page)
+            scrollY: 400,
+            scrollCollapse: true,
+            scrollX: true
         });
 
+        table.on('draw', function() {
+
+            // Verify checkbox is in the DOM
+            let $selectAll = $('#areaSelectAll');
+            if ($selectAll.length === 0) return;
+
+            // Clear checkboxes
+            $('#areasTable tbody .row-select').prop('checked', false);
+            $selectAll.prop('checked', false);
+            selectedIds = [];
+
+            // ✅ CLEAR any existing handler, then attach only one
+            $selectAll.off('change.debug').on('change.debug', function(e) {
+
+                let isChecked = this.checked;
+                $('#areasTable tbody .row-select').prop('checked', isChecked);
+
+                if (isChecked) {
+                    $('#areasTable tbody .row-select:checked').each(function() {
+                        let id = $(this).val();
+                        if (!selectedIds.includes(id)) selectedIds.push(id);
+                    });
+                } else {
+                    $('#areasTable tbody .row-select').each(function() {
+                        let id = $(this).val();
+                        selectedIds = selectedIds.filter(sid => sid !== id);
+                    });
+                }
+
+                updateSelectionUI();
+            });
+
+            updateSelectionUI();
+        });
 
         // Add/Edit Modal
         window.openAddModal = function() {
@@ -240,7 +284,7 @@
                             title: 'Success!',
                             text: response.message,
                             showConfirmButton: false,
-                            timer: 2000
+                            timer: 1000
                         });
                         $('#areaModal').modal('hide');
                         table.ajax.reload();
@@ -252,7 +296,7 @@
                     let response = xhr.responseJSON;
                     if (response && response.validation) {
                         let errors = Object.values(response.errors).flat().join('<br>');
-                        Swal.fire('Validation Error!', errors, 'error');
+                        Swal.fire('Error!', errors, 'error');
                     } else {
                         Swal.fire('Error!', response?.message || 'Something went wrong!', 'error');
                     }

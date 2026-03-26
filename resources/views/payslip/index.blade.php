@@ -244,14 +244,32 @@
                     render: function (data, type, row) {
                         return '<input type="checkbox" class="row-select" value="' + row.id + '">';
                     },
-                    width: "5%"
+                    width: "20px"   // 👈 Fixed pixels for checkbox
                 },
-                { data: 'id', name: 'id', visible: false },
-                { data: 'employee_id', name: 'employee_id' },
-                { data: 'name', name: 'name' },
-                { data: 'payslip', name: 'payslip', defaultContent: '-' },
+                {
+                    data: 'id',
+                    name: 'id',
+                    visible: false   // Hidden columns don't need width
+                },
+                {
+                    data: 'employee_id',
+                    name: 'employee_id',
+                    width: "200px"   // 👈 Employee ID
+                },
+                {
+                    data: 'name',
+                    name: 'name',
+                    width: "280px"   // 👈 Name (widest content)
+                },
+                {
+                    data: 'payslip',
+                    name: 'payslip',
+                    defaultContent: '-',
+                    width: "220px"   // 👈 Payslip filename
+                },
                 {
                     data: 'payslip_date',
+                    width: "200px",  // 👈 Date column
                     render: function(data) {
                         return data && data !== '-' ? data : '<em>No date</em>';
                     }
@@ -260,22 +278,22 @@
                     data: null,
                     orderable: false,
                     searchable: false,
+                    width: "240px",  // 👈 Actions (3 buttons)
                     render: function(data, type, row) {
                         return `
-                        <div class="btn-group" role="group">
-                            <a href="{{ asset('payslips') }}/${data.payslip}" target="_blank" class="btn btn-sm btn-info me-1">
-            <i class="fas fa-eye"></i>
-        </a>
-         <button class="btn btn-sm btn-warning edit-btn me-1" data-id="${row.id}">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger delete-btn" data-id="${row.id}">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    `;
-                    },
-                    width: "15%"
+                <div class="btn-group" role="group">
+                    <a href="{{ asset('payslips') }}/${data.payslip}" target="_blank" class="btn btn-sm btn-info me-1">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                    <button class="btn btn-sm btn-warning edit-btn me-1" data-id="${row.id}">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger delete-btn" data-id="${row.id}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+                    }
                 }
             ],
             order: [[1, 'desc']],
@@ -287,7 +305,52 @@
                 processing: "Loading...",
                 emptyTable: "No payslips found",
                 zeroRecords: "No payslips found for selected date range"
-            }
+            },
+            // 👇 Sticky header + footer
+            fixedHeader: {
+                header: true,
+                footer: true
+            },
+
+            // Optional: if you want internal Y‑scroll (not full page)
+            scrollY: 400,
+            scrollCollapse: true,
+            scrollX: true
+        });
+
+        table.on('draw', function() {
+
+            // Verify checkbox is in the DOM
+            let $selectAll = $('#selectAll');
+            if ($selectAll.length === 0) return;
+
+            // Clear checkboxes
+            $('#payslipsTable tbody .row-select').prop('checked', false);
+            $selectAll.prop('checked', false);
+            selectedIds = [];
+
+            // ✅ CLEAR any existing handler, then attach only one
+            $selectAll.off('change.debug').on('change.debug', function(e) {
+
+                let isChecked = this.checked;
+                $('#payslipsTable tbody .row-select').prop('checked', isChecked);
+
+                if (isChecked) {
+                    $('#payslipsTable tbody .row-select:checked').each(function() {
+                        let id = $(this).val();
+                        if (!selectedIds.includes(id)) selectedIds.push(id);
+                    });
+                } else {
+                    $('#payslipsTable tbody .row-select').each(function() {
+                        let id = $(this).val();
+                        selectedIds = selectedIds.filter(sid => sid !== id);
+                    });
+                }
+
+                updateSelectionUI();
+            });
+
+            updateSelectionUI();
         });
 
         // Load employees with area
@@ -419,7 +482,7 @@
                         title: 'Success!',
                         text: response.message,
                         showConfirmButton: false,
-                        timer: 2000
+                        timer: 1000
                     });
                     resetPayslipModal(); // ✅ Full reset
                     table.ajax.reload();
@@ -429,7 +492,7 @@
                     let response = xhr.responseJSON;
                     if (response && response.validation) {
                         let errors = Object.values(response.errors).flat().join('<br>');
-                        Swal.fire('Validation Error!', errors, 'error');
+                        Swal.fire('Error!', errors, 'error');
                     } else {
                         Swal.fire('Error!', response?.message || 'Something went wrong!', 'error');
                     }
@@ -772,7 +835,7 @@
                             title: 'Deleted!!',
                             html: response.message || 'Payslip deleted!',
                             showConfirmButton: false,
-                            timer: 2000
+                            timer: 1000
                         });
                         if (typeof table !== 'undefined') {
                             table.ajax.reload();

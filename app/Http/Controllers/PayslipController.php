@@ -62,7 +62,8 @@ class PayslipController extends Controller
                 $q->whereHas('employee', function($sub) use ($search) {
                     $sub->where('first_name', 'like', "%{$search}%")
                         ->orWhere('last_name', 'like', "%{$search}%")
-                        ->orWhere('employee_id', 'like', "%{$search}%");
+                        ->orWhere('employee_id', 'like', "%{$search}%")
+                        ->orWhere('suffix', 'like', "%{$search}%");
                 })->orWhere('payslip_date', 'like', "%{$search}%");
             });
         }

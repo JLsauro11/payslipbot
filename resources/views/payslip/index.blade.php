@@ -304,7 +304,7 @@
                 lengthMenu: "Show _MENU_ entries",
                 processing: "Loading...",
                 emptyTable: "No payslips found",
-                zeroRecords: "No payslips found for selected date range"
+                zeroRecords: "No payslips found"
             },
             // 👇 Sticky header + footer
             fixedHeader: {

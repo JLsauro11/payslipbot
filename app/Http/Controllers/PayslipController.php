@@ -20,15 +20,17 @@ class PayslipController extends Controller
 
     public function data(Request $request)
     {
-        $query = Payslip::with('employee')->select('payslips.*');
+        // Base query for data (no joins yet)
+        $query = Payslip::with(['employee.area', 'employee.department'])
+            ->select('payslips.*');
 
-        // ✅ FIXED: Parse FILTER dates AND convert DB format for TEXT field
+        // ✅ Parse FILTER dates and convert DB format for TEXT field
         $startDate = null;
         if ($request->filled('start_date')) {
             try {
                 $date = \Carbon\Carbon::createFromFormat('m/d/Y', $request->start_date);
                 if ($date && $date->format('m/d/Y') === $request->start_date) {
-                    $startDate = $date->format('m/d/Y');  // ✅ SAME FORMAT AS DB!
+                    $startDate = $date->format('m/d/Y'); // ✅ SAME FORMAT AS DB!
                 }
             } catch (\Exception $e) {
                 \Log::error('Invalid start_date: ' . $request->start_date);
@@ -40,7 +42,7 @@ class PayslipController extends Controller
             try {
                 $date = \Carbon\Carbon::createFromFormat('m/d/Y', $request->end_date);
                 if ($date && $date->format('m/d/Y') === $request->end_date) {
-                    $endDate = $date->format('m/d/Y');  // ✅ SAME FORMAT AS DB!
+                    $endDate = $date->format('m/d/Y'); // ✅ SAME FORMAT AS DB!
                 }
             } catch (\Exception $e) {
                 \Log::error('Invalid end_date: ' . $request->end_date);
@@ -55,29 +57,51 @@ class PayslipController extends Controller
             $query->where('payslip_date', '<=', $endDate);
         }
 
-        // Global search - FIX date search too!
+        // Global search (including area / department)
         if ($request->filled('search.value')) {
             $search = $request->search['value'];
-            $query->where(function($q) use ($search) {
-                $q->whereHas('employee', function($sub) use ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('employee', function ($sub) use ($search) {
                     $sub->where('first_name', 'like', "%{$search}%")
                         ->orWhere('last_name', 'like', "%{$search}%")
                         ->orWhere('employee_id', 'like', "%{$search}%")
-                        ->orWhere('suffix', 'like', "%{$search}%");
+                        ->orWhere('suffix', 'like', "%{$search}%")
+                        ->orWhereHas('area', function ($area) use ($search) {
+                            $area->where('name', 'like', "%{$search}%");
+                        })
+                        ->orWhereHas('department', function ($dept) use ($search) {
+                            $dept->where('name', 'like', "%{$search}%");
+                        });
                 })->orWhere('payslip_date', 'like', "%{$search}%");
             });
         }
+
+        // Total records (no joins)
+        $totalRecords = Payslip::count();
+
+        // Cloned query for filtering count (still no joins)
+        $filteredQuery = clone $query;
+        $filteredRecords = $filteredQuery->count();
 
         // Column ordering
         $orderColumn = $request->input('columns.' . ($request->order[0]['column'] ?? 1) . '.name', 'id');
         $orderDir = $request->input('order.0.dir', 'desc');
 
-        $totalRecords = Payslip::count();
-        $filteredRecords = clone $query;
-        $filteredRecords = $filteredRecords->count();
+        // Only apply joins when actually sorting by area/department
+        if ($orderColumn === 'area.name') {
+            $query->join('areas', 'areas.id', '=', 'employees.area_id')
+                ->join('employees', 'employees.employee_id', '=', 'payslips.employee_id')
+                ->orderBy('areas.name', $orderDir);
+        } elseif ($orderColumn === 'department.name') {
+            $query->join('departments', 'departments.id', '=', 'employees.department_id')
+                ->join('employees', 'employees.employee_id', '=', 'payslips.employee_id')
+                ->orderBy('departments.name', $orderDir);
+        } else {
+            $query->orderBy($orderColumn, $orderDir);
+        }
 
+        // Paginate data (with joins if needed)
         $payslips = $query
-            ->orderBy($orderColumn, $orderDir)
             ->skip($request->start ?? 0)
             ->take($request->length ?? 25)
             ->get();
@@ -101,13 +125,15 @@ class PayslipController extends Controller
             }
 
             return [
-                'id' => $payslip->id,
-                'employee_id' => $payslip->employee_id,
-                'name' => $name ?: '-',
-                'payslip' => $payslip->payslip ? $payslip->payslip : '-',
+                'id'           => $payslip->id,
+                'employee_id'  => $payslip->employee_id,
+                'name'         => $name ?: '-',
+                'area'         => $employee?->area?->name ?: '-',
+                'department'   => $employee?->department?->name ?: '-',
+                'payslip'      => $payslip->payslip ?: '-',
                 'payslip_date' => $payslip->payslip_date ?: null,
             ];
-        })
+        }),
         ]);
     }
 

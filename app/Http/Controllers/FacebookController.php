@@ -466,18 +466,28 @@ class FacebookController extends Controller
     {
         $options = [];
 
-        // Check LAST MONTH + CURRENT (if day >=15) — drops 2 months back
+        // Always check LAST 3 months to guarantee 3 payslips
+        $threeMonthsBack = $now->copy()->subMonths(3);
+        $twoMonthsBack = $now->copy()->subMonths(2);
         $oneMonthBack = $now->copy()->subMonth();
-        $monthsToCheck = [
-            $oneMonthBack,
-        ...($now->day >= 15 ? [$now->copy()] : [])
-    ];
 
-    foreach ($monthsToCheck as $monthDate) {
-        $options = array_merge($options, $this->generateMonthOptions($monthDate, $employeeId, $now));
-    }
+        $monthsToCheck = [$threeMonthsBack, $twoMonthsBack, $oneMonthBack];
 
-    usort($options, fn($a, $b) =>
+        foreach ($monthsToCheck as $monthDate) {
+            $options = array_merge($options, $this->generateMonthOptions($monthDate, $employeeId, $now));
+        }
+
+        // ✅ Deduplicate
+        $uniqueOptions = [];
+        foreach ($options as $option) {
+            $uniqueOptions[$option['date']] = $option;
+        }
+        $options = array_values($uniqueOptions);
+
+        // Take LAST 3 only (or fewer if not available)
+        $options = array_slice($options, -3);
+
+        usort($options, fn($a, $b) =>
         Carbon::createFromFormat('m/d/Y', $a['date']) <=> Carbon::createFromFormat('m/d/Y', $b['date'])
     );
 

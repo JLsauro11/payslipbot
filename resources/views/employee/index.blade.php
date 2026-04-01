@@ -268,8 +268,6 @@
         });
 
         table.on('draw', function() {
-            console.log('✅ draw → employeeSelectAll exists?', $('#employeeSelectAll').length);
-
             // Verify checkbox is in the DOM
             let $selectAll = $('#employeeSelectAll');
             if ($selectAll.length === 0) return;

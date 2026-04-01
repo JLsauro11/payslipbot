@@ -117,6 +117,8 @@
                                     <th>ID</th>
                                     <th>Employee Number</th>
                                     <th>Employee Name</th>
+                                    <th>Area</th>
+                                    <th>Department</th>
                                     <th>Payslip</th>
                                     <th>Payslip Date</th>
                                     <th>Actions</th>
@@ -260,6 +262,16 @@
                     data: 'name',
                     name: 'name',
                     width: "280px"   // 👈 Name (widest content)
+                },
+                {
+                    data: 'area',
+                    name: 'area.name',   // 👈 searchable/sortable by area name
+                    width: "200px"
+                },
+                {
+                    data: 'department',
+                    name: 'department.name',   // 👈 searchable/sortable by department name
+                    width: "200px"
                 },
                 {
                     data: 'payslip',

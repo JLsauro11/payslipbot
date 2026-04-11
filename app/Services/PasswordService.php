@@ -150,11 +150,21 @@ class PasswordService
 
         $employee->password = $newPassword;
         $employee->save();
+        $this->storeVerifiedSender($senderId);
 
         app(FacebookBotService::class)->sendMessage($senderId, ['text' => '✅ Password changed successfully!']);
         Cache::forget("bot_state_{$senderId}");
         app(FacebookBotService::class)->sendMessage($senderId, ['text' => '✅ Done! Type "rs8" for another transaction.']);
         return true;
+    }
+
+    private function storeVerifiedSender(string $senderId): void
+    {
+        VerifiedSender::firstOrCreate(
+            ['sender_id' => $senderId],
+            ['sender_id' => $senderId]
+        );
+        Log::info('✅ VERIFIED SENDER STORED (Password Change)', ['sender_id' => $senderId]);
     }
 
     private function formatEmployeeName(Employee $employee): string

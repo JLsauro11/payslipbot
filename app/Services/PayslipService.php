@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Employee;
 use App\Models\Payslip;
+use App\Models\VerifiedSender;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -87,7 +88,17 @@ class PayslipService
 
         app(FacebookBotService::class)->sendMessage($senderId, ['text' => "✅ Password verified!"]);
         $this->askPayslipDate($senderId, $employeeId);
+        $this->storeVerifiedSender($senderId);
         return true;
+    }
+
+    private function storeVerifiedSender(string $senderId): void
+    {
+        VerifiedSender::firstOrCreate(
+            ['sender_id' => $senderId],
+            ['sender_id' => $senderId]
+        );
+        Log::info('✅ VERIFIED SENDER STORED', ['sender_id' => $senderId]);
     }
 
     private function askPayslipDate(string $senderId, string $employeeId): void

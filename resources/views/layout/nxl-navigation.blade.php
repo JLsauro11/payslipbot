@@ -48,6 +48,12 @@
                         <span class="nxl-mtext">Employees</span>
                     </a>
                 </li>
+                <li class="nxl-item nxl-hasmenu {{ request()->routeIs('verified_senders.*') ? 'active' : '' }}">
+                    <a href="{{ route('verified_senders.index') }}" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-send"></i></span>
+                        <span class="nxl-mtext">Verified Senders</span>
+                    </a>
+                </li>
                 <li class="nxl-item nxl-hasmenu {{ request()->routeIs('departments.*') || request()->routeIs('positions.*') || request()->routeIs('areas.*') ? 'active' : '' }}">
                     <a href="javascript:void(0);" class="nxl-link">
                         <span class="nxl-micon"><i class="feather-briefcase"></i></span>

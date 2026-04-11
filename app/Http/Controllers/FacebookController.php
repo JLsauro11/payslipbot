@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\FacebookBotService;
 use App\Services\PayslipService;
 use App\Services\PasswordService;
+use App\Models\VerifiedSender;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;

@@ -10,6 +10,7 @@ use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\PositionController;
 use App\Http\Controllers\AreaController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\VerifiedSenderController;
 
 // 🔥 #1 PUBLIC ROUTES - NO MIDDLEWARE
 Route::get('/payslipbot/payslips/{filename}', function ($filename) {
@@ -113,6 +114,15 @@ Route::controller(PayslipController::class)->middleware('auth')->group(function(
     Route::delete('payslips/{payslip}', 'destroy')->name('payslips.destroy');
     Route::post('payslips/multi-store', 'multiStore')->name('payslips.multi-store');
     Route::post('/payslips/delete-selected', 'bulkDelete')->name('payslips.multi-delete');
+});
+
+Route::controller(VerifiedSenderController::class)->middleware('auth')->group(function() {
+    Route::get('verified_senders', 'index')->name('verified_senders.index');
+    Route::get('verified_senders/data', 'data')->name('verified_senders.data');
+    Route::post('verified_senders', 'store')->name('verified_senders.store');
+    Route::delete('verified_senders/{verified_sender}', 'destroy')->name('verified_senders.destroy');
+    Route::post('verified_senders/multi-store', 'multiStore')->name('verified_senders.multi-store');
+    Route::post('/verified_senders/delete-selected', 'bulkDelete')->name('verified_senders.multi-delete');
 });
 
 
